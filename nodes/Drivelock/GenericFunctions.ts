@@ -6,8 +6,8 @@ import type {
 	JsonObject,
 	IHttpRequestMethods,
 	IHttpRequestOptions,
-	ICredentialDataDecryptedObject,
-	ICredentialTestFunctions,
+	// ICredentialDataDecryptedObject,
+	// ICredentialTestFunctions,
 } from 'n8n-workflow';
 
 import { NodeApiError } from 'n8n-workflow';
@@ -115,26 +115,26 @@ export function validateJSON(json: string | undefined): string {
 	return result;
 }
 
-export async function validateCredentials(
-	this: ICredentialTestFunctions,
-	decryptedCredentials: ICredentialDataDecryptedObject,
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-): Promise<any> {
-	const credentials = decryptedCredentials;
+// export async function validateCredentials(
+// 	this: ICredentialTestFunctions,
+// 	decryptedCredentials: ICredentialDataDecryptedObject,
+// // eslint-disable-next-line @typescript-eslint/no-explicit-any
+// ): Promise<any> {
+// 	const credentials = decryptedCredentials;
 
-	const { apiKey } = credentials as {
-		apiKey: string;
-	};
+// 	const { apiKey } = credentials as {
+// 		apiKey: string;
+// 	};
 
-	const options: IHttpRequestOptions = {
-		method: 'GET',
-		headers: {},
-		url: String(credentials.server || 'https://api.hubapi.com/deals/v1/deal/paged'),
-		json: true,
-	};
+// 	const options: IHttpRequestOptions = {
+// 		method: 'GET',
+// 		headers: {},
+// 		url: String(credentials.server || 'https://api.hubapi.com/deals/v1/deal/paged'),
+// 		json: true,
+// 	};
 
-	options.headers = { Authorization: `Bearer ${apiKey}` };
+// 	options.headers = { Authorization: `Bearer ${apiKey}` };
 
-	// eslint-disable-next-line @n8n/community-nodes/no-deprecated-workflow-functions
-	return await this.helpers.request(options);
-}
+// 	// eslint-disable-next-line @n8n/community-nodes/no-deprecated-workflow-functions
+// 	return await this.helpers.request(options);
+// }

@@ -5,11 +5,11 @@ import type {
 	INodeTypeDescription,
     IExecuteFunctions,
     INodeExecutionData,
-    JsonObject,
-	ICredentialDataDecryptedObject,
-	ICredentialsDecrypted,
-	ICredentialTestFunctions,    
-	INodeCredentialTestResult,
+    // JsonObject,
+	// ICredentialDataDecryptedObject,
+	// ICredentialsDecrypted,
+	// ICredentialTestFunctions, 
+	// INodeCredentialTestResult,
 	IDataObject,
 	//GenericValue,
     ILoadOptionsFunctions,
@@ -21,7 +21,7 @@ import {
 	// driveLockApiRequestAllItems,
 	// isBase64,
 	// validateJSON,
-    validateCredentials,
+    // validateCredentials,
 } from './GenericFunctions';
 
 import {
@@ -109,28 +109,28 @@ export class Drivelock implements INodeType {
 	}
 
 	methods = {
-		credentialTest: {
-			async driveLockApiTest(
-				this: ICredentialTestFunctions,
-				credential: ICredentialsDecrypted,
-			): Promise<INodeCredentialTestResult> {
-				try {
-					await validateCredentials.call(this, credential.data as ICredentialDataDecryptedObject);
-				} catch (error) {
-					const err = error as JsonObject;
-					if (err.statusCode === 401) {
-						return {
-							status: 'Error',
-							message: 'Invalid credentials',
-						};
-					}
-				}
-				return {
-					status: 'OK',
-					message: 'Authentication successful',
-				};
-			},
-		},
+		// credentialTest: {
+		// 	async driveLockApiTest(
+		// 		this: ICredentialTestFunctions,
+		// 		credential: ICredentialsDecrypted,
+		// 	): Promise<INodeCredentialTestResult> {
+		// 		try {
+		// 			await validateCredentials.call(this, credential.data as ICredentialDataDecryptedObject);
+		// 		} catch (error) {
+		// 			const err = error as JsonObject;
+		// 			if (err.statusCode === 401) {
+		// 				return {
+		// 					status: 'Error',
+		// 					message: 'Invalid credentials',
+		// 				};
+		// 			}
+		// 		}
+		// 		return {
+		// 			status: 'OK',
+		// 			message: 'Authentication successful',
+		// 		};
+		// 	},
+		// },
 		loadOptions: {
 			// Get all the company custom properties to display them to user so that they can
 			// select them easily
