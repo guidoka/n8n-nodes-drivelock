@@ -1,0 +1,55 @@
+{
+  "name": "@drivelock/n8n-nodes-drivelock",
+  "version": "0.0.0",
+  "description": "Control the DriveLock API with n8n.",
+  "license": "MIT",
+  "homepage": "https://www.drivelock.com",
+  "keywords": [
+    "n8n-community-node-package",
+    "DriveLock API Connector"
+  ],
+  "author": {
+    "name": "Guido Kalter",
+    "email": "guido.kalter@drivelock.com"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/guidoka/n8n-nodes-drivelock.git"
+  },
+  "scripts": {
+    "build": "n8n-node build",
+    "build:watch": "tsc --watch",
+    "dev": "n8n-node dev",
+    "lint": "n8n-node lint",
+    "lint:fix": "n8n-node lint --fix",
+    "release": "n8n-node release",
+    "prepublishOnly": "n8n-node prerelease"
+  },
+  "files": [
+    "dist"
+  ],
+  "n8n": {
+    "n8nNodesApiVersion": 1,
+    "strict": true,
+    "credentials": [
+      "dist/credentials/DrivelockApi.credentials.js"
+    ],
+    "nodes": [
+      "dist/nodes/DriveLock/Drivelock.node.js"
+    ]
+  },
+  "devDependencies": {
+    "@n8n/node-cli": "*",
+    "@types/lodash": "^4.17.23",
+    "eslint": "9.32.0",
+    "prettier": "3.6.2",
+    "release-it": "^19.0.4",
+    "typescript": "5.9.2"
+  },
+  "peerDependencies": {
+    "n8n-workflow": "*"
+  },
+  "publishConfig": {
+    "access": "public"
+  }
+}
