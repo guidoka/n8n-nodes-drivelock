@@ -10,13 +10,13 @@ import {
 export class Drivelockrawapi implements INodeType {
 	description: INodeTypeDescription = {
 		usableAsTool: true,
-		displayName: 'DriveLock RAW API',
+		displayName: 'DriveLock Management RAW API',
 		name: 'drivelockrawapi',
 		icon: 'file:drivelock.svg',
 		group: ['transform'],
 		version: [1],
 		subtitle: '={{$parameter["operation"] + ": " + $parameter["resource"]}}',
-		description: 'Interact with DriveLock Public API. You can set parameters free',
+		description: 'DriveLock Management API - Computer, Entity, Group, Rules & Policy',
 		defaults: {
 			name: 'DriveLock',
 		},
@@ -37,8 +37,20 @@ export class Drivelockrawapi implements INodeType {
 				noDataExpression: true,
 				options: [
 					{
+						name: 'Application Rule',
+						value: 'applicationRules',
+					},
+					{
 						name: 'Computer',
 						value: 'computer',
+					},
+					{
+						name: 'Device Rule',
+						value: 'deviceRules',
+					},
+					{
+						name: 'Drive Rule',
+						value: 'driveRules',
 					},
 					{
 						name: 'Entity',
@@ -49,8 +61,8 @@ export class Drivelockrawapi implements INodeType {
 						value: 'group',
 					},
 					{
-						name: 'Application Rule',
-						value: 'applicationRules',
+						name: 'Policy',
+						value: 'policy',
 					},
 				],
 				default: 'computer',
@@ -287,32 +299,44 @@ export class Drivelockrawapi implements INodeType {
 				// eslint-disable-next-line n8n-nodes-base/node-param-options-type-unsorted-items
 				options: [
 					{
+						name: 'ACBinaries',
+						value: 'ACBinaries',
+					},
+					{
 						name: 'Computers',
 						value: 'Computers',
-					},
-					{
-						name: 'Users',
-						value: 'Users',
-					},
-					{
-						name: 'Events',
-						value: 'Events',
 					},
 					{
 						name: 'Devices',
 						value: 'Devices',
 					},
 					{
+						name: 'DriveLock Configs',
+						value: 'DriveLockConfigs',
+					},
+					{
 						name: 'Drives',
 						value: 'Drives',
+					},
+					{
+						name: 'Events',
+						value: 'Events',
 					},
 					{
 						name: 'Groups',
 						value: 'Groups',
 					},
 					{
-						name: 'DriveLock Configs',
-						value: 'DriveLockConfigs',
+						name: 'Policies',
+						value: 'Policies',
+					},
+					{
+						name: 'Software',
+						value: 'Software',
+					},
+					{
+						name: 'Users',
+						value: 'Users',
 					},
 					{
 						name: 'White Lists',
@@ -529,7 +553,7 @@ export class Drivelockrawapi implements INodeType {
 				},
 				options: [
 					{
-						name: 'Add Computers To Group',
+						name: 'Add Computers to Group',
 						value: 'addComputers',
 						description: 'Add computers to a group',
 						action: 'Add computers to group',
@@ -686,6 +710,315 @@ export class Drivelockrawapi implements INodeType {
 				default: '',
 				required: true,
 				description: 'Comma-separated list of rule IDs to delete',
+			},
+
+			// =====================================
+			// Device Rules Operations
+			// =====================================
+			{
+				displayName: 'Operation',
+				name: 'operation',
+				type: 'options',
+				noDataExpression: true,
+				displayOptions: {
+					show: {
+						resource: ['deviceRules'],
+					},
+				},
+				options: [
+					{
+						name: 'Create Rules',
+						value: 'createRules',
+						description: 'Create device control rules',
+						action: 'Create device rules',
+					},
+					{
+						name: 'Delete Rules',
+						value: 'deleteRules',
+						description: 'Delete device control rules',
+						action: 'Delete device rules',
+					},
+					{
+						name: 'Get Collections',
+						value: 'getCollections',
+						description: 'Get device collections',
+						action: 'Get device collections',
+					},
+					{
+						name: 'Get Rules',
+						value: 'getRules',
+						description: 'Get device control rules',
+						action: 'Get device rules',
+					},
+					{
+						name: 'Update Collections',
+						value: 'updateCollections',
+						description: 'Update device collections',
+						action: 'Update device collections',
+					},
+					{
+						name: 'Update Rules',
+						value: 'updateRules',
+						description: 'Update device control rules',
+						action: 'Update device rules',
+					},
+				],
+				default: 'getRules',
+			},
+
+			{
+				displayName: 'Config ID',
+				name: 'configId',
+				type: 'string',
+				displayOptions: {
+					show: {
+						resource: ['deviceRules'],
+					},
+				},
+				default: '',
+				required: true,
+			},
+			{
+				displayName: 'Config Version',
+				name: 'configVersion',
+				type: 'number',
+				displayOptions: {
+					show: {
+						resource: ['deviceRules'],
+					},
+				},
+				default: 0,
+			},
+
+			{
+				displayName: 'Rules/Collections',
+				name: 'rulesData',
+				type: 'json',
+				displayOptions: {
+					show: {
+						resource: ['deviceRules'],
+						operation: ['createRules', 'updateRules', 'updateCollections'],
+					},
+				},
+				default: '[]',
+				required: true,
+			},
+
+			{
+				displayName: 'Rule IDs',
+				name: 'ruleIds',
+				type: 'string',
+				displayOptions: {
+					show: {
+						resource: ['deviceRules'],
+						operation: ['deleteRules'],
+					},
+				},
+				default: '',
+				required: true,
+			},
+
+			// =====================================
+			// Drive Rules Operations
+			// =====================================
+			{
+				displayName: 'Operation',
+				name: 'operation',
+				type: 'options',
+				noDataExpression: true,
+				displayOptions: {
+					show: {
+						resource: ['driveRules'],
+					},
+				},
+				options: [
+					{
+						name: 'Create Rules',
+						value: 'createRules',
+						description: 'Create drive control rules',
+						action: 'Create drive rules',
+					},
+					{
+						name: 'Delete Rules',
+						value: 'deleteRules',
+						description: 'Delete drive control rules',
+						action: 'Delete drive rules',
+					},
+					{
+						name: 'Get Collections',
+						value: 'getCollections',
+						description: 'Get drive collections',
+						action: 'Get drive collections',
+					},
+					{
+						name: 'Get Rules',
+						value: 'getRules',
+						description: 'Get drive control rules',
+						action: 'Get drive rules',
+					},
+					{
+						name: 'Update Collections',
+						value: 'updateCollections',
+						description: 'Update drive collections',
+						action: 'Update drive collections',
+					},
+					{
+						name: 'Update Rules',
+						value: 'updateRules',
+						description: 'Update drive control rules',
+						action: 'Update drive rules',
+					},
+				],
+				default: 'getRules',
+			},
+
+			{
+				displayName: 'Config ID',
+				name: 'configId',
+				type: 'string',
+				displayOptions: {
+					show: {
+						resource: ['driveRules'],
+					},
+				},
+				default: '',
+				required: true,
+			},
+			{
+				displayName: 'Config Version',
+				name: 'configVersion',
+				type: 'number',
+				displayOptions: {
+					show: {
+						resource: ['driveRules'],
+					},
+				},
+				default: 0,
+			},
+
+			{
+				displayName: 'Rules/Collections',
+				name: 'rulesData',
+				type: 'json',
+				displayOptions: {
+					show: {
+						resource: ['driveRules'],
+						operation: ['createRules', 'updateRules', 'updateCollections'],
+					},
+				},
+				default: '[]',
+				required: true,
+			},
+
+			{
+				displayName: 'Rule IDs',
+				name: 'ruleIds',
+				type: 'string',
+				displayOptions: {
+					show: {
+						resource: ['driveRules'],
+						operation: ['deleteRules'],
+					},
+				},
+				default: '',
+				required: true,
+			},
+
+			// =====================================
+			// Policy Operations
+			// =====================================
+			{
+				displayName: 'Operation',
+				name: 'operation',
+				type: 'options',
+				noDataExpression: true,
+				displayOptions: {
+					show: {
+						resource: ['policy'],
+					},
+				},
+				options: [
+					{
+						name: 'Assign to Groups',
+						value: 'assignToGroups',
+						description: 'Assign policy to groups',
+						action: 'Assign policy to groups',
+					},
+					{
+						name: 'Create',
+						value: 'create',
+						description: 'Create a new policy',
+						action: 'Create policy',
+					},
+					{
+						name: 'Delete',
+						value: 'delete',
+						description: 'Delete a policy',
+						action: 'Delete policy',
+					},
+					{
+						name: 'Get',
+						value: 'get',
+						description: 'Get policy details',
+						action: 'Get policy',
+					},
+					{
+						name: 'Get Assignments',
+						value: 'getAssignments',
+						description: 'Get policy group assignments',
+						action: 'Get policy assignments',
+					},
+					{
+						name: 'Update',
+						value: 'update',
+						description: 'Update a policy',
+						action: 'Update policy',
+					},
+				],
+				default: 'get',
+			},
+
+			{
+				displayName: 'Policy ID',
+				name: 'policyId',
+				type: 'string',
+				displayOptions: {
+					show: {
+						resource: ['policy'],
+						operation: ['get', 'update', 'delete', 'assignToGroups', 'getAssignments'],
+					},
+				},
+				default: '',
+				required: true,
+			},
+
+			{
+				displayName: 'Policy Data',
+				name: 'policyData',
+				type: 'json',
+				displayOptions: {
+					show: {
+						resource: ['policy'],
+						operation: ['create', 'update'],
+					},
+				},
+				default: '{\n  "name": "My Policy",\n  "description": ""\n}',
+				required: true,
+			},
+
+			{
+				displayName: 'Group IDs',
+				name: 'groupIds',
+				type: 'string',
+				displayOptions: {
+					show: {
+						resource: ['policy'],
+						operation: ['assignToGroups'],
+					},
+				},
+				default: '',
+				required: true,
+				description: 'Comma-separated list of group IDs',
 			},
 		],
 	};
@@ -1166,6 +1499,428 @@ export class Drivelockrawapi implements INodeType {
 							{
 								method: 'DELETE',
 								url: `${baseUrl}/api/administration/applicationControl/rules`,
+								body,
+								json: true,
+							},
+						);
+
+						returnData.push(extractResponseData(response));
+					}
+				} else if (resource === 'deviceRules') {
+					// =====================================
+					// Device Rules Operations
+					// =====================================
+					const configId = this.getNodeParameter('configId', i) as string;
+					const configVersion = this.getNodeParameter('configVersion', i) as number;
+
+					if (operation === 'getRules') {
+						const qs: IDataObject = {
+							configVersion: configVersion || undefined,
+						};
+
+						const response = await this.helpers.httpRequestWithAuthentication.call(
+							this,
+							credentialType,
+							{
+								method: 'GET',
+								url: `${baseUrl}/api/administration/deviceControl/rules/${configId}`,
+								qs,
+								json: true,
+							},
+						);
+
+						returnData.push(extractResponseData(response));
+					} else if (operation === 'getCollections') {
+						const qs: IDataObject = {
+							configVersion: configVersion || undefined,
+						};
+
+						const response = await this.helpers.httpRequestWithAuthentication.call(
+							this,
+							credentialType,
+							{
+								method: 'GET',
+								url: `${baseUrl}/api/administration/deviceControl/collections/${configId}`,
+								qs,
+								json: true,
+							},
+						);
+
+						returnData.push(extractResponseData(response));
+					} else if (operation === 'createRules') {
+						const rulesDataStr = this.getNodeParameter('rulesData', i) as string;
+
+						let rules;
+						try {
+							rules = JSON.parse(rulesDataStr);
+						} catch {
+							throw new NodeOperationError(this.getNode(), 'Invalid JSON in rules data field');
+						}
+
+						const body = {
+							configId,
+							configVersion: configVersion || undefined,
+							rules,
+						};
+
+						const response = await this.helpers.httpRequestWithAuthentication.call(
+							this,
+							credentialType,
+							{
+								method: 'POST',
+								url: `${baseUrl}/api/administration/deviceControl/rules`,
+								body,
+								json: true,
+							},
+						);
+
+						returnData.push(extractResponseData(response));
+					} else if (operation === 'updateRules') {
+						const rulesDataStr = this.getNodeParameter('rulesData', i) as string;
+
+						let rules;
+						try {
+							rules = JSON.parse(rulesDataStr);
+						} catch {
+							throw new NodeOperationError(this.getNode(), 'Invalid JSON in rules data field');
+						}
+
+						const body = {
+							configId,
+							configVersion: configVersion || undefined,
+							rules,
+						};
+
+						const response = await this.helpers.httpRequestWithAuthentication.call(
+							this,
+							credentialType,
+							{
+								method: 'PATCH',
+								url: `${baseUrl}/api/administration/deviceControl/rules`,
+								body,
+								json: true,
+							},
+						);
+
+						returnData.push(extractResponseData(response));
+					} else if (operation === 'updateCollections') {
+						const rulesDataStr = this.getNodeParameter('rulesData', i) as string;
+
+						let collections;
+						try {
+							collections = JSON.parse(rulesDataStr);
+						} catch {
+							throw new NodeOperationError(
+								this.getNode(),
+								'Invalid JSON in collections data field',
+							);
+						}
+
+						const body = {
+							configId,
+							configVersion: configVersion || undefined,
+							collections,
+						};
+
+						const response = await this.helpers.httpRequestWithAuthentication.call(
+							this,
+							credentialType,
+							{
+								method: 'PATCH',
+								url: `${baseUrl}/api/administration/deviceControl/collections`,
+								body,
+								json: true,
+							},
+						);
+
+						returnData.push(extractResponseData(response));
+					} else if (operation === 'deleteRules') {
+						const ruleIdsStr = this.getNodeParameter('ruleIds', i) as string;
+						const ruleIds = ruleIdsStr.split(',').map((id) => id.trim());
+
+						const body = {
+							configId,
+							configVersion: configVersion || undefined,
+							ruleIds,
+						};
+
+						const response = await this.helpers.httpRequestWithAuthentication.call(
+							this,
+							credentialType,
+							{
+								method: 'DELETE',
+								url: `${baseUrl}/api/administration/deviceControl/rules`,
+								body,
+								json: true,
+							},
+						);
+
+						returnData.push(extractResponseData(response));
+					}
+				} else if (resource === 'driveRules') {
+					// =====================================
+					// Drive Rules Operations
+					// =====================================
+					const configId = this.getNodeParameter('configId', i) as string;
+					const configVersion = this.getNodeParameter('configVersion', i) as number;
+
+					if (operation === 'getRules') {
+						const qs: IDataObject = {
+							configVersion: configVersion || undefined,
+						};
+
+						const response = await this.helpers.httpRequestWithAuthentication.call(
+							this,
+							credentialType,
+							{
+								method: 'GET',
+								url: `${baseUrl}/api/administration/driveControl/rules/${configId}`,
+								qs,
+								json: true,
+							},
+						);
+
+						returnData.push(extractResponseData(response));
+					} else if (operation === 'getCollections') {
+						const qs: IDataObject = {
+							configVersion: configVersion || undefined,
+						};
+
+						const response = await this.helpers.httpRequestWithAuthentication.call(
+							this,
+							credentialType,
+							{
+								method: 'GET',
+								url: `${baseUrl}/api/administration/driveControl/collections/${configId}`,
+								qs,
+								json: true,
+							},
+						);
+
+						returnData.push(extractResponseData(response));
+					} else if (operation === 'createRules') {
+						const rulesDataStr = this.getNodeParameter('rulesData', i) as string;
+
+						let rules;
+						try {
+							rules = JSON.parse(rulesDataStr);
+						} catch {
+							throw new NodeOperationError(this.getNode(), 'Invalid JSON in rules data field');
+						}
+
+						const body = {
+							configId,
+							configVersion: configVersion || undefined,
+							rules,
+						};
+
+						const response = await this.helpers.httpRequestWithAuthentication.call(
+							this,
+							credentialType,
+							{
+								method: 'POST',
+								url: `${baseUrl}/api/administration/driveControl/rules`,
+								body,
+								json: true,
+							},
+						);
+
+						returnData.push(extractResponseData(response));
+					} else if (operation === 'updateRules') {
+						const rulesDataStr = this.getNodeParameter('rulesData', i) as string;
+
+						let rules;
+						try {
+							rules = JSON.parse(rulesDataStr);
+						} catch {
+							throw new NodeOperationError(this.getNode(), 'Invalid JSON in rules data field');
+						}
+
+						const body = {
+							configId,
+							configVersion: configVersion || undefined,
+							rules,
+						};
+
+						const response = await this.helpers.httpRequestWithAuthentication.call(
+							this,
+							credentialType,
+							{
+								method: 'PATCH',
+								url: `${baseUrl}/api/administration/driveControl/rules`,
+								body,
+								json: true,
+							},
+						);
+
+						returnData.push(extractResponseData(response));
+					} else if (operation === 'updateCollections') {
+						const rulesDataStr = this.getNodeParameter('rulesData', i) as string;
+
+						let collections;
+						try {
+							collections = JSON.parse(rulesDataStr);
+						} catch {
+							throw new NodeOperationError(
+								this.getNode(),
+								'Invalid JSON in collections data field',
+							);
+						}
+
+						const body = {
+							configId,
+							configVersion: configVersion || undefined,
+							collections,
+						};
+
+						const response = await this.helpers.httpRequestWithAuthentication.call(
+							this,
+							credentialType,
+							{
+								method: 'PATCH',
+								url: `${baseUrl}/api/administration/driveControl/collections`,
+								body,
+								json: true,
+							},
+						);
+
+						returnData.push(extractResponseData(response));
+					} else if (operation === 'deleteRules') {
+						const ruleIdsStr = this.getNodeParameter('ruleIds', i) as string;
+						const ruleIds = ruleIdsStr.split(',').map((id) => id.trim());
+
+						const body = {
+							configId,
+							configVersion: configVersion || undefined,
+							ruleIds,
+						};
+
+						const response = await this.helpers.httpRequestWithAuthentication.call(
+							this,
+							credentialType,
+							{
+								method: 'DELETE',
+								url: `${baseUrl}/api/administration/driveControl/rules`,
+								body,
+								json: true,
+							},
+						);
+
+						returnData.push(extractResponseData(response));
+					}
+				} else if (resource === 'policy') {
+					// =====================================
+					// Policy Operations
+					// =====================================
+					if (operation === 'get') {
+						const policyId = this.getNodeParameter('policyId', i) as string;
+
+						const response = await this.helpers.httpRequestWithAuthentication.call(
+							this,
+							credentialType,
+							{
+								method: 'GET',
+								url: `${baseUrl}/api/administration/policy/${policyId}`,
+								json: true,
+							},
+						);
+
+						returnData.push(extractResponseData(response));
+					} else if (operation === 'create') {
+						const policyDataStr = this.getNodeParameter('policyData', i) as string;
+
+						let policyData;
+						try {
+							policyData = JSON.parse(policyDataStr);
+						} catch {
+							throw new NodeOperationError(
+								this.getNode(),
+								'Invalid JSON in policy data field',
+							);
+						}
+
+						const response = await this.helpers.httpRequestWithAuthentication.call(
+							this,
+							credentialType,
+							{
+								method: 'POST',
+								url: `${baseUrl}/api/administration/policy`,
+								body: policyData,
+								json: true,
+							},
+						);
+
+						returnData.push(extractResponseData(response));
+					} else if (operation === 'update') {
+						const policyId = this.getNodeParameter('policyId', i) as string;
+						const policyDataStr = this.getNodeParameter('policyData', i) as string;
+
+						let policyData;
+						try {
+							policyData = JSON.parse(policyDataStr);
+						} catch {
+							throw new NodeOperationError(
+								this.getNode(),
+								'Invalid JSON in policy data field',
+							);
+						}
+
+						const response = await this.helpers.httpRequestWithAuthentication.call(
+							this,
+							credentialType,
+							{
+								method: 'PATCH',
+								url: `${baseUrl}/api/administration/policy/${policyId}`,
+								body: policyData,
+								json: true,
+							},
+						);
+
+						returnData.push(extractResponseData(response));
+					} else if (operation === 'delete') {
+						const policyId = this.getNodeParameter('policyId', i) as string;
+
+						const response = await this.helpers.httpRequestWithAuthentication.call(
+							this,
+							credentialType,
+							{
+								method: 'DELETE',
+								url: `${baseUrl}/api/administration/policy/${policyId}`,
+								json: true,
+							},
+						);
+
+						returnData.push(extractResponseData(response));
+					} else if (operation === 'getAssignments') {
+						const policyId = this.getNodeParameter('policyId', i) as string;
+
+						const response = await this.helpers.httpRequestWithAuthentication.call(
+							this,
+							credentialType,
+							{
+								method: 'GET',
+								url: `${baseUrl}/api/administration/policy/${policyId}/assignments`,
+								json: true,
+							},
+						);
+
+						returnData.push(extractResponseData(response));
+					} else if (operation === 'assignToGroups') {
+						const policyId = this.getNodeParameter('policyId', i) as string;
+						const groupIdsStr = this.getNodeParameter('groupIds', i) as string;
+						const groupIds = groupIdsStr.split(',').map((id) => id.trim());
+
+						const body = {
+							policyId,
+							groupIds,
+						};
+
+						const response = await this.helpers.httpRequestWithAuthentication.call(
+							this,
+							credentialType,
+							{
+								method: 'POST',
+								url: `${baseUrl}/api/administration/policy/${policyId}/assign`,
 								body,
 								json: true,
 							},

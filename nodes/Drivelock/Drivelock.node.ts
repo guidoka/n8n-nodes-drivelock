@@ -22,7 +22,7 @@ import {
 	// isBase64,
 	// validateJSON,
     // validateCredentials,
-} from './GenericFunctions';
+} from './helper/GenericFunctions';
 
 import {
 	NodeApiError,
@@ -31,16 +31,23 @@ import {
     // LoggerProxy as Logger,
 } from 'n8n-workflow';
 
-import { customPropertyOperations } from './CustomPropertyOperations';
-import { binariesOperations } from './BinariesOperations';
-import * as customPropHelper from './CustomPropertyHelper';
-import { DriveLockItem, CustomPropsResponse, CustomProps, ExtensionGroup, DriveLockQuery } from './utils';
+import * as customPropHelper from './helper/CustomPropertyHelper';
+import { DriveLockItem, CustomPropsResponse, CustomProps, ExtensionGroup, DriveLockQuery } from './helper/utils';
 
-import { applicationRulePropertyOperations } from './ApplicationRulePropertyOperations';
+import { applicationRuleOperations } from './operations/ApplicationRuleOperations';
+import { binariesOperations } from './operations/BinariesOperations';
+import { computerOperations } from './operations/ComputerOperations';
+import { customPropertyOperations } from './operations/CustomPropertyOperations';
+import { deviceRuleOperations } from './operations/DeviceRuleOperations';
+import { driveRuleOperations } from './operations/DriveRuleOperations';
+import { entityOperations } from './operations/EntityOperations';
+import { groupOperations } from './operations/GroupOperations';
+import { policyOperations } from './operations/PolicyOperations';
+
 
 export class Drivelock implements INodeType {
 	description: INodeTypeDescription = {
-        displayName: 'DriveLock',
+        displayName: 'DriveLock API',
         name: 'drivelock',
         icon: 'file:drivelock.svg',
         group: ['transform'],
@@ -49,7 +56,7 @@ export class Drivelock implements INodeType {
         subtitle: '={{$if($parameter["operation"], $parameter["operation"] + " : ", "") + $parameter["resource"]}}',
         description: 'Consume DriveLock API',
         defaults: {
-            name: 'DriveLock Software',
+            name: 'DriveLock API',
         },
 		inputs: [NodeConnectionTypes.Main],
 		outputs: [NodeConnectionTypes.Main],
@@ -58,11 +65,11 @@ export class Drivelock implements INodeType {
 				name: 'driveLockApi',
 				required: true,
                 testedBy: 'driveLockApiTest',
-				displayOptions: {
-					show: {
-						resource: ['computers','users','devices','software','binaries','customproperty']
-					},
-				},				
+				// displayOptions: {
+				// 	show: {
+				// 		resource: ['computers','users','devices','software','binaries','customproperty']
+				// 	},
+				// },				
 			}
         ],
 		usableAsTool: true,
@@ -75,34 +82,44 @@ export class Drivelock implements INodeType {
 				// eslint-disable-next-line n8n-nodes-base/node-param-options-type-unsorted-items
 				options: [
 					{
-						name: 'Switch API Output to Item Array',
-						value: 'changeoutput',
-						description: 'Change the output',
+						name: 'Application Rule',
+						value: 'applicationRules',
+						description: 'Manage application rules',
 					},
 					{
-						name: 'Manage Computer',
-						value: 'computers',
-						description: 'Manage the computers',
+						name: 'Computer',
+						value: 'computer',
+						description: 'Manage computers',
 					},
 					{
-						name: 'Manage User',
-						value: 'users',
-						description: 'Manage the users',
+						name: 'Device Rule',
+						value: 'deviceRules',
+						description: 'Manage device rules',
 					},
 					{
-						name: 'Manage Device',
-						value: 'devices',
-						description: 'Manage the devices',
-					},
-					{
-						name: 'Manage Software',
-						value: 'software',
-						description: 'Manage the software',
-					},					
-					{
-						name: 'Manage Binary',
+						name: 'Binary',
 						value: 'binaries',
 						description: 'Manage binaries',
+					},
+					{
+						name: 'Entity',
+						value: 'entity',
+						description: 'Manage entities',
+					},
+					{
+						name: 'Group',
+						value: 'group',
+						description: 'Manage groups',
+					},
+					{
+						name: 'Policy',
+						value: 'policy',
+						description: 'Manage policies',
+					},
+					{
+						name: 'Tool',
+						value: 'tool',
+						description: 'Tool to handle DriveLock node data',
 					},
 					{
 						name: 'Manage Schema Extention',
@@ -112,9 +129,35 @@ export class Drivelock implements INodeType {
 				],
 				default: 'customproperty',
 			},
-            ...customPropertyOperations,
+			{
+				displayName: 'Operation',
+				name: 'operation',
+				type: 'options',
+				noDataExpression: true,
+				displayOptions: {
+					show: {
+						resource: ['tool'],
+					},
+				},
+				options: [
+					{
+						name: 'Change JSON Data-Return to Item Array',
+						value: 'changeoutput',
+						description: 'Change the output',
+						action: 'Change JSON data return to item array',
+					},
+				],
+				default: 'changeoutput',
+			},	
+			...applicationRuleOperations,
 			...binariesOperations,
-            ...applicationRulePropertyOperations,
+			...computerOperations,
+			...customPropertyOperations,
+			...deviceRuleOperations,
+			...driveRuleOperations,
+			...entityOperations,
+			...groupOperations,
+			...policyOperations,
         ],
 	}
 
@@ -149,6 +192,7 @@ export class Drivelock implements INodeType {
 			): Promise<INodePropertyOptions[]> {
 				
 				const returnData: INodePropertyOptions[] = [];
+				
 
 				const customSchemes = await (driveLockApiRequest<CustomPropsResponse>).call(this, 'GET', '/api/administration/entity/customSchema/getCustomSchemas', {});
 
@@ -183,39 +227,94 @@ export class Drivelock implements INodeType {
 	}; 
 
 	async execute(this: IExecuteFunctions): Promise<INodeExecutionData[][]> {
+		
 		const items = this.getInputData();
-		const returnData: INodeExecutionData[] = [];
+		//const returnData: INodeExecutionData[] = [];
+		const returnData: IDataObject[] = [];
+
 		const length = items.length;
-		// let responseData;
-		// const qs: IDataObject = {};
-		// const version = this.getNode().typeVersion;
+
+		const resource = this.getNodeParameter('resource', 0) as string;
+		const operation = this.getNodeParameter('operation', 0) as string;		
+
+		const credentialType = 'driveLockApi';
+		const credentials = await this.getCredentials(credentialType);
+		const baseUrl = (credentials.baseUrl as string || 'https://api.drivelock.cloud').replace(/\/$/, '');		
+
+		// Helper function to safely extract response data and avoid circular references
+		const extractResponseData = (response: unknown): IDataObject => {
+
+
+			if (!response) return { success: true };
+			if (typeof response === 'string') return { data: response };
+
+			if (typeof response === 'object' && response !== null) {
+				// Remove circular references and only keep serializable data
+				const responseObj = response as Record<string, unknown>;
+				const { errorId, error, data, total, additionalInfo, ...rest } = responseObj;
+				
+				const result: IDataObject = {
+					success: !error,
+				};
+				
+				if (errorId !== undefined && errorId !== null) {
+					result.errorId = errorId;
+				}
+				if (error !== undefined && error !== null) {
+					result.error = error;
+				}
+				if (data !== undefined) {
+					result.data = data;
+				}
+				if (total !== undefined) {
+					result.total = total;
+				}
+				if (additionalInfo !== undefined && additionalInfo !== null) {
+					result.additionalInfo = additionalInfo;
+				}
+				
+				// Add remaining properties
+				Object.keys(rest).forEach(key => {
+					if (rest[key] !== undefined && rest[key] !== null) {
+						result[key] = rest[key];
+					}
+				});
+				
+				return result;
+			}
+			return { success: true, data: response };
+		};		
 
 		for (let i = 0; i < length; i++) {
 
 			try {
 
-				const resource = this.getNodeParameter('resource', i);
+				// const resource = this.getNodeParameter('resource', i);
+				// const operation = this.getNodeParameter('operation', i);
 
-				if (resource === 'changeoutput') {
-					const items = this.getInputData();
+				if (resource === 'tool') {
 
-					const returnData = items.flatMap((item) => {
-						const dataArray = item?.json?.data;
-						
-						if (!Array.isArray(dataArray)) {
-							return [];
-						}
-						
-						return dataArray.map((dataItem: unknown) => ({ 
-							json: dataItem as IDataObject 
-						}));
-					});
+					if (operation === 'changeoutput') {
+						const items = this.getInputData();
 
-					return [returnData];
+						const returnData = items.flatMap((item) => {
+							const dataArray = item?.json?.data;
+							
+							if (!Array.isArray(dataArray)) {
+								return [];
+							}
+							
+							return dataArray.map((dataItem: unknown) => ({ 
+								json: dataItem as IDataObject 
+							}));
+						});
+
+						return [returnData];
+					}
 
 				} else if (resource === 'customproperty') {
 
-					const operation = this.getNodeParameter('operation', i);
+					
 
 					const schema  = this.getNodeParameter('schema', i) as string;
 					const schemaExtention = `${schema}Extensions`; //Check is on Extensions
@@ -272,11 +371,13 @@ export class Drivelock implements INodeType {
 
 						if (success) {
 
-							const executionData = this.helpers.constructExecutionMetaData(
-								this.helpers.returnJsonArray(responseData),
-								{ itemData: { item: i } },
-							);
-							returnData.push(...executionData);
+							// const executionData = this.helpers.constructExecutionMetaData(
+							// 	this.helpers.returnJsonArray(responseData),
+							// 	{ itemData: { item: i } },
+							// );
+							// returnData.push(...executionData);
+
+							returnData.push(responseData);
 
 						} else {
 
@@ -302,17 +403,18 @@ export class Drivelock implements INodeType {
 						const url = `/api/administration/entity/customSchema/setCustomData/${schemaExtention}`;
 						await driveLockApiRequest.call(this, 'POST', url, payload);
 
-						const executionData = this.helpers.constructExecutionMetaData(
-							this.helpers.returnJsonArray({success:true, payload:payload}),
-							{ itemData: { item: i } },
-						);
-						returnData.push(...executionData);
+						// const executionData = this.helpers.constructExecutionMetaData(
+						// 	this.helpers.returnJsonArray(),
+						// 	{ itemData: { item: i } },
+						// );
+						// returnData.push(...executionData);
+
+						returnData.push({success:true, payload:payload});
 
 					}
 
 				} else if (resource === 'binaries') {
 
-					const operation = this.getNodeParameter('operation', i);
 					if (operation === 'getAll') {
 
 						const endpoint = `/api/administration/entity/AcBinaries`
@@ -394,35 +496,894 @@ export class Drivelock implements INodeType {
 
 						if (responseData) {
 
-							const executionData = this.helpers.constructExecutionMetaData(
-								this.helpers.returnJsonArray(responseData as IDataObject),
-								{ itemData: { item: i } },
-							);
-							returnData.push(...executionData);
+							// const executionData = this.helpers.constructExecutionMetaData(
+							// 	this.helpers.returnJsonArray(responseData as IDataObject),
+							// 	{ itemData: { item: i } },
+							// );
+							// returnData.push(...executionData);
 
+							returnData.push(responseData as IDataObject);
+							
 						}
 					}
 
+				} else if (resource === 'computer') {
+					// =====================================
+					// Computer Operations
+					// =====================================
+					if (operation === 'delete') {
+						const computerIdsStr = this.getNodeParameter('computerIds', i) as string;
+						const computerIds = computerIdsStr.split(',').map(id => id.trim());
+						const deleteRecoveryData = this.getNodeParameter('deleteRecoveryData', i) as boolean;
+						const deleteEvents = this.getNodeParameter('deleteEvents', i) as boolean;
+						const deleteGroupDefinitions = this.getNodeParameter('deleteGroupDefinitions', i) as boolean;
+
+						const body = {
+							computerIds,
+							deleteRecoveryData,
+							deleteEvents,
+							deleteGroupDefinitions,
+						};
+
+						const response = await this.helpers.httpRequestWithAuthentication.call(
+							this,
+							credentialType,
+							{
+								method: 'POST',
+								url: `${baseUrl}/api/administration/computer/delete`,
+								body,
+								json: true,
+							},
+						);
+
+						returnData.push(extractResponseData(response));
+					} else if (operation === 'executeActions') {
+						const computerIdsStr = this.getNodeParameter('computerIds', i) as string;
+						const computerIds = computerIdsStr.split(',').map(id => id.trim());
+						const actionsStr = this.getNodeParameter('actions', i) as string;
+						const notifyAgent = this.getNodeParameter('notifyAgent', i) as boolean;
+
+						let actions;
+						try {
+							actions = JSON.parse(actionsStr);
+						} catch {
+							throw new NodeOperationError(this.getNode(), 'Invalid JSON in actions field');
+						}
+
+						const body = {
+							computerIds,
+							actions,
+							notifyAgent,
+						};
+
+						const response = await this.helpers.httpRequestWithAuthentication.call(
+							this,
+							credentialType,
+							{
+								method: 'POST',
+								url: `${baseUrl}/api/administration/computer/actions`,
+								body,
+								json: true,
+							},
+						);
+
+						returnData.push(extractResponseData(response));
+					} else if (operation === 'onlineUnlock') {
+						const computerId = this.getNodeParameter('computerId', i) as string;
+						const unlockDataStr = this.getNodeParameter('unlockData', i) as string;
+
+						let data;
+						try {
+							data = JSON.parse(unlockDataStr);
+						} catch {
+							throw new NodeOperationError(this.getNode(), 'Invalid JSON in unlock data field');
+						}
+
+						const body = {
+							computerId,
+							data,
+						};
+
+						const response = await this.helpers.httpRequestWithAuthentication.call(
+							this,
+							credentialType,
+							{
+								method: 'POST',
+								url: `${baseUrl}/api/administration/computer/online/unlock`,
+								body,
+								json: true,
+							},
+						);
+
+						returnData.push(extractResponseData(response));
+					} else if (operation === 'stopOnlineUnlock') {
+						const computerId = this.getNodeParameter('computerId', i) as string;
+
+						const body = {
+							computerId,
+						};
+
+						const response = await this.helpers.httpRequestWithAuthentication.call(
+							this,
+							credentialType,
+							{
+								method: 'POST',
+								url: `${baseUrl}/api/administration/computer/online/stopUnlock`,
+								body,
+								json: true,
+							},
+						);
+
+						returnData.push(extractResponseData(response));
+					} else if (operation === 'markForRejoin') {
+						const computerIdsStr = this.getNodeParameter('computerIds', i) as string;
+						const computerIds = computerIdsStr.split(',').map(id => id.trim());
+						const allowToRejoin = this.getNodeParameter('allowToRejoin', i) as boolean;
+
+						const body = {
+							computerIds,
+							allowToRejoin,
+						};
+
+						const response = await this.helpers.httpRequestWithAuthentication.call(
+							this,
+							credentialType,
+							{
+								method: 'POST',
+								url: `${baseUrl}/api/administration/computer/markAgentForRejoin`,
+								body,
+								json: true,
+							},
+						);
+
+						returnData.push(extractResponseData(response));
+					}
+				} else if (resource === 'entity') {
+					// =====================================
+					// Entity Operations
+					// =====================================
+					const entityName = this.getNodeParameter('entityName', i) as string;
+
+					if (operation === 'getList') {
+						const additionalFields = this.getNodeParameter('additionalFields', i) as IDataObject;
+
+						const qs: IDataObject = {};
+						if (additionalFields.select) qs.select = additionalFields.select;
+						if (additionalFields.query) qs.query = additionalFields.query;
+						if (additionalFields.sortBy) qs.sortBy = additionalFields.sortBy;
+						if (additionalFields.groupBy) qs.groupBy = additionalFields.groupBy;
+						if (additionalFields.skip !== undefined) qs.skip = additionalFields.skip;
+						if (additionalFields.take !== undefined) qs.take = additionalFields.take;
+						if (additionalFields.getTotalCount !== undefined)
+							qs.getTotalCount = additionalFields.getTotalCount;
+						if (additionalFields.includeLinkedObjects !== undefined)
+							qs.includeLinkedObjects = additionalFields.includeLinkedObjects;
+						if (additionalFields.getFullObjects !== undefined)
+							qs.getFullObjects = additionalFields.getFullObjects;
+
+						const response = await this.helpers.httpRequestWithAuthentication.call(
+							this,
+							credentialType,
+							{
+								method: 'GET',
+								url: `${baseUrl}/api/administration/entity/${entityName}`,
+								qs,
+								json: true,
+							},
+						);
+
+						returnData.push(extractResponseData(response));
+					} else if (operation === 'getCount') {
+						const additionalFields = this.getNodeParameter('additionalFields', i) as IDataObject;
+
+						const qs: IDataObject = {};
+						if (additionalFields.query) qs.query = additionalFields.query;
+						if (additionalFields.groupBy) qs.groupBy = additionalFields.groupBy;
+
+						const response = await this.helpers.httpRequestWithAuthentication.call(
+							this,
+							credentialType,
+							{
+								method: 'GET',
+								url: `${baseUrl}/api/administration/entity/${entityName}/count`,
+								qs,
+								json: true,
+							},
+						);
+
+						returnData.push(extractResponseData(response));
+					} else if (operation === 'getById') {
+						const entityId = this.getNodeParameter('entityId', i) as string;
+						const includeLinkedObjects = this.getNodeParameter(
+							'includeLinkedObjects',
+							i,
+						) as boolean;
+
+						const qs: IDataObject = {
+							includeLinkedObjects,
+						};
+
+						const response = await this.helpers.httpRequestWithAuthentication.call(
+							this,
+							credentialType,
+							{
+								method: 'GET',
+								url: `${baseUrl}/api/administration/entity/${entityName}/${entityId}`,
+								qs,
+								json: true,
+							},
+						);
+
+						returnData.push(extractResponseData(response));
+					} else if (operation === 'export') {
+						const exportFormat = this.getNodeParameter('exportFormat', i) as string;
+						const additionalFields = this.getNodeParameter('additionalFields', i) as IDataObject;
+						const exportOptions = this.getNodeParameter('exportOptions', i) as IDataObject;
+
+						const qs: IDataObject = {
+							exportFormat,
+						};
+
+						if (additionalFields.select) qs.select = additionalFields.select;
+						if (additionalFields.query) qs.query = additionalFields.query;
+						if (additionalFields.sortBy) qs.sortBy = additionalFields.sortBy;
+						if (additionalFields.groupBy) qs.groupBy = additionalFields.groupBy;
+						if (additionalFields.skip !== undefined) qs.skip = additionalFields.skip;
+						if (additionalFields.take !== undefined) qs.take = additionalFields.take;
+						if (additionalFields.includeLinkedObjects !== undefined)
+							qs.includeLinkedObjects = additionalFields.includeLinkedObjects;
+						if (additionalFields.getFullObjects !== undefined)
+							qs.getFullObjects = additionalFields.getFullObjects;
+
+						if (exportOptions.readability !== undefined)
+							qs.readability = exportOptions.readability;
+						if (exportOptions.separator) qs.separator = exportOptions.separator;
+						if (exportOptions.language) qs.language = exportOptions.language;
+
+						const response = await this.helpers.httpRequestWithAuthentication.call(
+							this,
+							credentialType,
+							{
+								method: 'GET',
+								url: `${baseUrl}/api/administration/entity/${entityName}/export`,
+								qs,
+							},
+						);
+
+						returnData.push(extractResponseData(response));
+					}
+				} else if (resource === 'group') {
+					// =====================================
+					// Group Operations
+					// =====================================
+					const groupId = this.getNodeParameter('groupId', i) as string;
+
+					if (operation === 'addComputers') {
+						const computerIdsStr = this.getNodeParameter('computerIds', i) as string;
+						const computerIds = computerIdsStr.split(',').map((id) => id.trim());
+
+						const body = {
+							groupId,
+							computerIds,
+						};
+
+						const response = await this.helpers.httpRequestWithAuthentication.call(
+							this,
+							credentialType,
+							{
+								method: 'POST',
+								url: `${baseUrl}/api/administration/group/${groupId}/members/add`,
+								body,
+								json: true,
+							},
+						);
+
+						returnData.push(extractResponseData(response));
+					} else if (operation === 'removeComputers') {
+						const computerIdsStr = this.getNodeParameter('computerIds', i) as string;
+						const computerIds = computerIdsStr.split(',').map((id) => id.trim());
+
+						const body = {
+							groupId,
+							computerIds,
+						};
+
+						const response = await this.helpers.httpRequestWithAuthentication.call(
+							this,
+							credentialType,
+							{
+								method: 'POST',
+								url: `${baseUrl}/api/administration/group/${groupId}/members/remove`,
+								body,
+								json: true,
+							},
+						);
+
+						returnData.push(extractResponseData(response));
+					} else if (operation === 'setMembers') {
+						const computerIdsStr = this.getNodeParameter('computerIds', i) as string;
+						const computerIds = computerIdsStr.split(',').map((id) => id.trim());
+
+						const body = {
+							groupId,
+							computerIds,
+						};
+
+						const response = await this.helpers.httpRequestWithAuthentication.call(
+							this,
+							credentialType,
+							{
+								method: 'PUT',
+								url: `${baseUrl}/api/administration/group/${groupId}/members`,
+								body,
+								json: true,
+							},
+						);
+
+						returnData.push(extractResponseData(response));
+					} else if (operation === 'getMembers') {
+						const response = await this.helpers.httpRequestWithAuthentication.call(
+							this,
+							credentialType,
+							{
+								method: 'GET',
+								url: `${baseUrl}/api/administration/group/${groupId}/members`,
+								json: true,
+							},
+						);
+
+						returnData.push(extractResponseData(response));
+					}
+				} else if (resource === 'applicationRules') {
+					// =====================================
+					// Application Rules Operations
+					// =====================================
+					const configId = this.getNodeParameter('configId', i) as string;
+					const configVersion = this.getNodeParameter('configVersion', i) as number;
+
+					if (operation === 'getRules') {
+						const qs: IDataObject = {
+							configVersion: configVersion || undefined,
+						};
+
+						const response = await this.helpers.httpRequestWithAuthentication.call(
+							this,
+							credentialType,
+							{
+								method: 'GET',
+								url: `${baseUrl}/api/administration/applicationControl/rules/${configId}`,
+								qs,
+								json: true,
+							},
+						);
+
+						returnData.push(extractResponseData(response));
+					} else if (operation === 'createRules') {
+						const rulesStr = this.getNodeParameter('rules', i) as string;
+
+						let rules;
+						try {
+							rules = JSON.parse(rulesStr);
+						} catch {
+							throw new NodeOperationError(this.getNode(), 'Invalid JSON in rules field');
+						}
+
+						const body = {
+							configId,
+							configVersion: configVersion || undefined,
+							rules,
+						};
+
+						const response = await this.helpers.httpRequestWithAuthentication.call(
+							this,
+							credentialType,
+							{
+								method: 'POST',
+								url: `${baseUrl}/api/administration/applicationControl/rules`,
+								body,
+								json: true,
+							},
+						);
+
+						returnData.push(extractResponseData(response));
+					} else if (operation === 'updateRules') {
+						const rulesStr = this.getNodeParameter('rules', i) as string;
+
+						let rules;
+						try {
+							rules = JSON.parse(rulesStr);
+						} catch {
+							throw new NodeOperationError(this.getNode(), 'Invalid JSON in rules field');
+						}
+
+						const body = {
+							configId,
+							configVersion: configVersion || undefined,
+							rules,
+						};
+
+						const response = await this.helpers.httpRequestWithAuthentication.call(
+							this,
+							credentialType,
+							{
+								method: 'PATCH',
+								url: `${baseUrl}/api/administration/applicationControl/rules`,
+								body,
+								json: true,
+							},
+						);
+
+						returnData.push(extractResponseData(response));
+					} else if (operation === 'deleteRules') {
+						const ruleIdsStr = this.getNodeParameter('ruleIds', i) as string;
+						const ruleIds = ruleIdsStr.split(',').map((id) => id.trim());
+
+						const body = {
+							configId,
+							configVersion: configVersion || undefined,
+							ruleIds,
+						};
+
+						const response = await this.helpers.httpRequestWithAuthentication.call(
+							this,
+							credentialType,
+							{
+								method: 'DELETE',
+								url: `${baseUrl}/api/administration/applicationControl/rules`,
+								body,
+								json: true,
+							},
+						);
+
+						returnData.push(extractResponseData(response));
+					}
+				} else if (resource === 'deviceRules') {
+					// ===================================
+					// Device Rules Operations
+					// =====================================
+					const configId = this.getNodeParameter('configId', i) as string;
+					const configVersion = this.getNodeParameter('configVersion', i) as number;
+
+					if (operation === 'getRules') {
+						const qs: IDataObject = {
+							configVersion: configVersion || undefined,
+						};
+
+						const response = await this.helpers.httpRequestWithAuthentication.call(
+							this,
+							credentialType,
+							{
+								method: 'GET',
+								url: `${baseUrl}/api/administration/deviceControl/rules/${configId}`,
+								qs,
+								json: true,
+							},
+						);
+
+						returnData.push(extractResponseData(response));
+					} else if (operation === 'getCollections') {
+						const qs: IDataObject = {
+							configVersion: configVersion || undefined,
+						};
+
+						const response = await this.helpers.httpRequestWithAuthentication.call(
+							this,
+							credentialType,
+							{
+								method: 'GET',
+								url: `${baseUrl}/api/administration/deviceControl/collections/${configId}`,
+								qs,
+								json: true,
+							},
+						);
+
+						returnData.push(extractResponseData(response));
+					} else if (operation === 'createRules') {
+						const rulesDataStr = this.getNodeParameter('rulesData', i) as string;
+
+						let rules;
+						try {
+							rules = JSON.parse(rulesDataStr);
+						} catch {
+							throw new NodeOperationError(this.getNode(), 'Invalid JSON in rules data field');
+						}
+
+						const body = {
+							configId,
+							configVersion: configVersion || undefined,
+							rules,
+						};
+
+						const response = await this.helpers.httpRequestWithAuthentication.call(
+							this,
+							credentialType,
+							{
+								method: 'POST',
+								url: `${baseUrl}/api/administration/deviceControl/rules`,
+								body,
+								json: true,
+							},
+						);
+
+						returnData.push(extractResponseData(response));
+					} else if (operation === 'updateRules') {
+						const rulesDataStr = this.getNodeParameter('rulesData', i) as string;
+
+						let rules;
+						try {
+							rules = JSON.parse(rulesDataStr);
+						} catch {
+							throw new NodeOperationError(this.getNode(), 'Invalid JSON in rules data field');
+						}
+
+						const body = {
+							configId,
+							configVersion: configVersion || undefined,
+							rules,
+						};
+
+						const response = await this.helpers.httpRequestWithAuthentication.call(
+							this,
+							credentialType,
+							{
+								method: 'PATCH',
+								url: `${baseUrl}/api/administration/deviceControl/rules`,
+								body,
+								json: true,
+							},
+						);
+
+						returnData.push(extractResponseData(response));
+					} else if (operation === 'updateCollections') {
+						const rulesDataStr = this.getNodeParameter('rulesData', i) as string;
+
+						let collections;
+						try {
+							collections = JSON.parse(rulesDataStr);
+						} catch {
+							throw new NodeOperationError(
+								this.getNode(),
+								'Invalid JSON in collections data field',
+							);
+						}
+
+						const body = {
+							configId,
+							configVersion: configVersion || undefined,
+							collections,
+						};
+
+						const response = await this.helpers.httpRequestWithAuthentication.call(
+							this,
+							credentialType,
+							{
+								method: 'PATCH',
+								url: `${baseUrl}/api/administration/deviceControl/collections`,
+								body,
+								json: true,
+							},
+						);
+
+						returnData.push(extractResponseData(response));
+					} else if (operation === 'deleteRules') {
+						const ruleIdsStr = this.getNodeParameter('ruleIds', i) as string;
+						const ruleIds = ruleIdsStr.split(',').map((id) => id.trim());
+
+						const body = {
+							configId,
+							configVersion: configVersion || undefined,
+							ruleIds,
+						};
+
+						const response = await this.helpers.httpRequestWithAuthentication.call(
+							this,
+							credentialType,
+							{
+								method: 'DELETE',
+								url: `${baseUrl}/api/administration/deviceControl/rules`,
+								body,
+								json: true,
+							},
+						);
+
+						returnData.push(extractResponseData(response));
+					}
+				} else if (resource === 'driveRules') {
+					// =====================================
+					// Drive Rules Operations
+					// =====================================
+					const configId = this.getNodeParameter('configId', i) as string;
+					const configVersion = this.getNodeParameter('configVersion', i) as number;
+
+					if (operation === 'getRules') {
+						const qs: IDataObject = {
+							configVersion: configVersion || undefined,
+						};
+
+						const response = await this.helpers.httpRequestWithAuthentication.call(
+							this,
+							credentialType,
+							{
+								method: 'GET',
+								url: `${baseUrl}/api/administration/driveControl/rules/${configId}`,
+								qs,
+								json: true,
+							},
+						);
+
+						returnData.push(extractResponseData(response));
+					} else if (operation === 'getCollections') {
+						const qs: IDataObject = {
+							configVersion: configVersion || undefined,
+						};
+
+						const response = await this.helpers.httpRequestWithAuthentication.call(
+							this,
+							credentialType,
+							{
+								method: 'GET',
+								url: `${baseUrl}/api/administration/driveControl/collections/${configId}`,
+								qs,
+								json: true,
+							},
+						);
+
+						returnData.push(extractResponseData(response));
+					} else if (operation === 'createRules') {
+						const rulesDataStr = this.getNodeParameter('rulesData', i) as string;
+
+						let rules;
+						try {
+							rules = JSON.parse(rulesDataStr);
+						} catch {
+							throw new NodeOperationError(this.getNode(), 'Invalid JSON in rules data field');
+						}
+
+						const body = {
+							configId,
+							configVersion: configVersion || undefined,
+							rules,
+						};
+
+						const response = await this.helpers.httpRequestWithAuthentication.call(
+							this,
+							credentialType,
+							{
+								method: 'POST',
+								url: `${baseUrl}/api/administration/driveControl/rules`,
+								body,
+								json: true,
+							},
+						);
+
+						returnData.push(extractResponseData(response));
+					} else if (operation === 'updateRules') {
+						const rulesDataStr = this.getNodeParameter('rulesData', i) as string;
+
+						let rules;
+						try {
+							rules = JSON.parse(rulesDataStr);
+						} catch {
+							throw new NodeOperationError(this.getNode(), 'Invalid JSON in rules data field');
+						}
+
+						const body = {
+							configId,
+							configVersion: configVersion || undefined,
+							rules,
+						};
+
+						const response = await this.helpers.httpRequestWithAuthentication.call(
+							this,
+							credentialType,
+							{
+								method: 'PATCH',
+								url: `${baseUrl}/api/administration/driveControl/rules`,
+								body,
+								json: true,
+							},
+						);
+
+						returnData.push(extractResponseData(response));
+					} else if (operation === 'updateCollections') {
+						const rulesDataStr = this.getNodeParameter('rulesData', i) as string;
+
+						let collections;
+						try {
+							collections = JSON.parse(rulesDataStr);
+						} catch {
+							throw new NodeOperationError(
+								this.getNode(),
+								'Invalid JSON in collections data field',
+							);
+						}
+
+						const body = {
+							configId,
+							configVersion: configVersion || undefined,
+							collections,
+						};
+
+						const response = await this.helpers.httpRequestWithAuthentication.call(
+							this,
+							credentialType,
+							{
+								method: 'PATCH',
+								url: `${baseUrl}/api/administration/driveControl/collections`,
+								body,
+								json: true,
+							},
+						);
+
+						returnData.push(extractResponseData(response));
+					} else if (operation === 'deleteRules') {
+						const ruleIdsStr = this.getNodeParameter('ruleIds', i) as string;
+						const ruleIds = ruleIdsStr.split(',').map((id) => id.trim());
+
+						const body = {
+							configId,
+							configVersion: configVersion || undefined,
+							ruleIds,
+						};
+
+						const response = await this.helpers.httpRequestWithAuthentication.call(
+							this,
+							credentialType,
+							{
+								method: 'DELETE',
+								url: `${baseUrl}/api/administration/driveControl/rules`,
+								body,
+								json: true,
+							},
+						);
+
+						returnData.push(extractResponseData(response));
+					}
+				} else if (resource === 'policy') {
+					// =====================================
+					// Policy Operations
+					// =====================================
+					if (operation === 'get') {
+						const policyId = this.getNodeParameter('policyId', i) as string;
+
+						const response = await this.helpers.httpRequestWithAuthentication.call(
+							this,
+							credentialType,
+							{
+								method: 'GET',
+								url: `${baseUrl}/api/administration/policy/${policyId}`,
+								json: true,
+							},
+						);
+
+						returnData.push(extractResponseData(response));
+					} else if (operation === 'create') {
+						const policyDataStr = this.getNodeParameter('policyData', i) as string;
+
+						let policyData;
+						try {
+							policyData = JSON.parse(policyDataStr);
+						} catch {
+							throw new NodeOperationError(
+								this.getNode(),
+								'Invalid JSON in policy data field',
+							);
+						}
+
+						const response = await this.helpers.httpRequestWithAuthentication.call(
+							this,
+							credentialType,
+							{
+								method: 'POST',
+								url: `${baseUrl}/api/administration/policy`,
+								body: policyData,
+								json: true,
+							},
+						);
+
+						returnData.push(extractResponseData(response));
+					} else if (operation === 'update') {
+						const policyId = this.getNodeParameter('policyId', i) as string;
+						const policyDataStr = this.getNodeParameter('policyData', i) as string;
+
+						let policyData;
+						try {
+							policyData = JSON.parse(policyDataStr);
+						} catch {
+							throw new NodeOperationError(
+								this.getNode(),
+								'Invalid JSON in policy data field',
+							);
+						}
+
+						const response = await this.helpers.httpRequestWithAuthentication.call(
+							this,
+							credentialType,
+							{
+								method: 'PATCH',
+								url: `${baseUrl}/api/administration/policy/${policyId}`,
+								body: policyData,
+								json: true,
+							},
+						);
+
+						returnData.push(extractResponseData(response));
+					} else if (operation === 'delete') {
+						const policyId = this.getNodeParameter('policyId', i) as string;
+
+						const response = await this.helpers.httpRequestWithAuthentication.call(
+							this,
+							credentialType,
+							{
+								method: 'DELETE',
+								url: `${baseUrl}/api/administration/policy/${policyId}`,
+								json: true,
+							},
+						);
+
+						returnData.push(extractResponseData(response));
+					} else if (operation === 'getAssignments') {
+						const policyId = this.getNodeParameter('policyId', i) as string;
+
+						const response = await this.helpers.httpRequestWithAuthentication.call(
+							this,
+							credentialType,
+							{
+								method: 'GET',
+								url: `${baseUrl}/api/administration/policy/${policyId}/assignments`,
+								json: true,
+							},
+						);
+
+						returnData.push(extractResponseData(response));
+					} else if (operation === 'assignToGroups') {
+						const policyId = this.getNodeParameter('policyId', i) as string;
+						const groupIdsStr = this.getNodeParameter('groupIds', i) as string;
+						const groupIds = groupIdsStr.split(',').map((id) => id.trim());
+
+						const body = {
+							policyId,
+							groupIds,
+						};
+
+						const response = await this.helpers.httpRequestWithAuthentication.call(
+							this,
+							credentialType,
+							{
+								method: 'POST',
+								url: `${baseUrl}/api/administration/policy/${policyId}/assign`,
+								body,
+								json: true,
+							},
+						);
+
+						returnData.push(extractResponseData(response));
+					}
 				}
 
 			} catch (error) {
 
-				if (this.continueOnFail()) {
-					const executionErrorData = this.helpers.constructExecutionMetaData(
-						this.helpers.returnJsonArray({ error: error.message }),
-						{ itemData: { item: i } },
-					);
+				// if (this.continueOnFail()) {
+				// 	const executionErrorData = this.helpers.constructExecutionMetaData(
+				// 		this.helpers.returnJsonArray({ error: error.message }),
+				// 		{ itemData: { item: i } },
+				// 	);
 
-					returnData.push(...executionErrorData);
+				// 	returnData.push(...executionErrorData);
+				// 	continue;
+				// }
+				// throw error;
+
+				if (this.continueOnFail()) {
+					returnData.push({ error: error.message });
 					continue;
 				}
-				throw error;
-
+				throw error;				
 			}
 
 		}
 
-		return [returnData];
+		return [this.helpers.returnJsonArray(returnData)];
 
     };
 
