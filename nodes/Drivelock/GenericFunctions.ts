@@ -55,9 +55,9 @@ export async function driveLockApiRequest<T = unknown>(
 
 	try {
 
-		let credentialType = '';
-		const credentials = await this.getCredentials('driveLockApi');
-		credentialType = 'driveLockApi';
+		const credentialType = 'driveLockApi';
+		const credentials = await this.getCredentials(credentialType);
+		
 
 		const baseUrl = credentials.baseUrl || 'https://api.drivelock.cloud';
 		options.url = `${baseUrl}${endpoint}`;

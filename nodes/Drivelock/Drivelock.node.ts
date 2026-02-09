@@ -57,7 +57,12 @@ export class Drivelock implements INodeType {
 			{
 				name: 'driveLockApi',
 				required: true,
-                testedBy: 'driveLockApiTest'
+                testedBy: 'driveLockApiTest',
+				displayOptions: {
+					show: {
+						resource: ['computers','users','devices','software','binaries','customproperty']
+					},
+				},				
 			}
         ],
 		usableAsTool: true,
@@ -69,6 +74,11 @@ export class Drivelock implements INodeType {
 				noDataExpression: true,
 				// eslint-disable-next-line n8n-nodes-base/node-param-options-type-unsorted-items
 				options: [
+					{
+						name: 'Switch API Output to Item Array',
+						value: 'changeoutput',
+						description: 'Change the output',
+					},
 					{
 						name: 'Manage Computer',
 						value: 'computers',
@@ -180,15 +190,32 @@ export class Drivelock implements INodeType {
 		// const qs: IDataObject = {};
 		// const version = this.getNode().typeVersion;
 
-
 		for (let i = 0; i < length; i++) {
 
 			try {
 
 				const resource = this.getNodeParameter('resource', i);
-				const operation = this.getNodeParameter('operation', i);
 
-				if (resource === 'customproperty') {
+				if (resource === 'changeoutput') {
+					const items = this.getInputData();
+
+					const returnData = items.flatMap((item) => {
+						const dataArray = item?.json?.data;
+						
+						if (!Array.isArray(dataArray)) {
+							return [];
+						}
+						
+						return dataArray.map((dataItem: unknown) => ({ 
+							json: dataItem as IDataObject 
+						}));
+					});
+
+					return [returnData];
+
+				} else if (resource === 'customproperty') {
+
+					const operation = this.getNodeParameter('operation', i);
 
 					const schema  = this.getNodeParameter('schema', i) as string;
 					const schemaExtention = `${schema}Extensions`; //Check is on Extensions
@@ -271,8 +298,7 @@ export class Drivelock implements INodeType {
 						const customPropertyId = (this.getNodeParameter('customPropertyId', i) as IDataObject);
 						const updateProperties = (this.getNodeParameter('updateProperties', i) as IDataObject).customPropertiesValues as IDataObject[];
 						const payload = customPropHelper.createSetPayload(customPropertyId.value as string, updateProperties);
-						
-						
+
 						const url = `/api/administration/entity/customSchema/setCustomData/${schemaExtention}`;
 						await driveLockApiRequest.call(this, 'POST', url, payload);
 
@@ -286,6 +312,7 @@ export class Drivelock implements INodeType {
 
 				} else if (resource === 'binaries') {
 
+					const operation = this.getNodeParameter('operation', i);
 					if (operation === 'getAll') {
 
 						const endpoint = `/api/administration/entity/AcBinaries`
@@ -297,8 +324,7 @@ export class Drivelock implements INodeType {
 						if (!getFullObject) {
 							const propertiesToInclude = this.getNodeParameter('properties', i);
 							const extentionPropertiesToInclude = this.getNodeParameter('extentionproperties', i);
-							
-							
+
 							if (Array.isArray(propertiesToInclude)) {
 								select_fields = propertiesToInclude.map(key => `${key}`).join(',');
 							}
@@ -322,26 +348,46 @@ export class Drivelock implements INodeType {
 							qs.select = `id,${select_fields},`;
 
 
-						qs.take = 10; //this is my internal limit of this custom-node FIXME make this global const
+						qs.take = 500; //this is my internal limit of this custom-node FIXME make this global const
 						
+						let limit: number = -1;
 						if (!returnAll) { //if not every should be returned - in case the limt number (of returned items) is less then take ... lower take to this value
-							const limit = this.getNodeParameter('limit', i) as number;
+
+							limit = this.getNodeParameter('limit', i) as number;
 							if (qs.take>limit)
 								qs.take = limit;
+
 						}
 
 						const responseData  = await (driveLockApiRequest<DriveLockItem[]>).call(this, 'GET', endpoint, {}, qs); //first of all - fire request
 						const total = responseData.total ?? 0; //now we got the total counter - this is always set by the API
-						
-						if (total > qs.take) {
-							while(responseData.data?.length < total) {
+	
+						if (
+							(returnAll && qs.take < total) ||
+							(!returnAll && qs.take < limit)
+						) {
+
+							while (responseData.data?.length < total) {
+
 								qs.skip = responseData.data?.length;
+								
+								if (!returnAll){
+									const nextAll: number = responseData.data?.length + qs.take;
+									if (nextAll>limit)
+										qs.take = nextAll - (nextAll-limit);
+								}
+
 								const additionalData = await (driveLockApiRequest<DriveLockItem[]>).call(this, 'GET', endpoint, {}, qs);							
 								if (!Array.isArray(additionalData.data)) {
 									throw new NodeOperationError(this.getNode(), `Some custom properties are missing or have incorrect data types. Details`, { itemIndex: i });
 								}
 								responseData.data.push(...additionalData.data as []);
+
+								if (!returnAll && responseData.data?.length >= limit)
+									break;
+
 							}
+
 						}
 
 						responseData.n8nProcessedTotal = responseData.data?.length;

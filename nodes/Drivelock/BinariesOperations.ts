@@ -127,7 +127,7 @@ export const binariesOperations: INodeProperties[] = [
 			{
 				name: 'AcFile (Relation)',
 				value: 'acFile.*'
-			},						
+			},				
 		]
 		
 	},
@@ -149,5 +149,227 @@ export const binariesOperations: INodeProperties[] = [
 			loadOptionsMethod: 'getSchemaExtentions',
 		},
 	
+	},
+	{
+		displayName: 'Filter Groups',
+		name: 'filterGroupsUi',
+		type: 'fixedCollection',
+		default: {},
+		placeholder: 'Add Filter Group',
+		typeOptions: {
+			multipleValues: true,
+		},
+		displayOptions: {
+			show: {
+				resource: ['binaries'],
+				operation: ['getAll'],
+			},
+		},
+		options: [
+			{
+				name: 'filterGroupsValues',
+				displayName: 'Filter Group',
+				values: [
+					{
+						displayName: 'Filters',
+						name: 'filtersUi',
+						type: 'fixedCollection',
+						default: {},
+						placeholder: 'Add Filter',
+						typeOptions: {
+							multipleValues: true,
+						},
+						options: [
+							{
+								name: 'filterValues',
+								displayName: 'Filter',
+								// eslint-disable-next-line n8n-nodes-base/node-param-fixed-collection-type-unsorted-items
+								values: [
+									{
+										displayName: 'Property Name or ID',
+										name: 'propertyName',
+										type: 'options',
+										description:
+											'Choose from the list, or specify an ID using an <a href="https://docs.n8n.io/code/expressions/">expression</a>',
+										typeOptions: {
+											loadOptionsMethod: 'getContactPropertiesWithType',
+										},
+										default: '',
+									},
+									{
+										displayName: 'Type',
+										name: 'type',
+										type: 'hidden',
+										default: '={{$parameter["&propertyName"].split("|")[1]}}',
+									},
+									{
+										displayName: 'Operator',
+										name: 'operator',
+										type: 'options',
+										displayOptions: {
+											hide: {
+												type: ['number'],
+											},
+										},
+										// eslint-disable-next-line n8n-nodes-base/node-param-options-type-unsorted-items
+										options: [
+											{
+												name: 'Equal',
+												value: 'EQ',
+											},
+											{
+												name: 'Not Equal',
+												value: 'NEQ',
+											},
+											{
+												name: 'Starts With',
+												value: 'sw',
+											},
+											{
+												name: 'NOT NULL',
+												value: 'IS_NOT_NULL',
+											},
+											{
+												name: 'Is NULL',
+												value: 'IS_NULL',
+											},
+										],
+										default: 'EQ',
+									},
+									{
+										displayName: 'Operator',
+										name: 'operator',
+										type: 'options',
+										displayOptions: {
+											show: {
+												type: ['number'],
+											},
+										},
+										options: [
+											{
+												name: 'Contains Exactly',
+												value: 'CONTAINS_TOKEN',
+											},
+											{
+												name: 'Equal',
+												value: 'EQ',
+											},
+											{
+												name: 'Greater Than',
+												value: 'GT',
+											},
+											{
+												name: 'Greater Than Or Equal',
+												value: 'GTE',
+											},
+											{
+												name: 'Is Known',
+												value: 'HAS_PROPERTY',
+											},
+											{
+												name: 'Is Unknown',
+												value: 'NOT_HAS_PROPERTY',
+											},
+											{
+												name: 'Less Than',
+												value: 'LT',
+											},
+											{
+												name: 'Less Than Or Equal',
+												value: 'LTE',
+											},
+											{
+												name: 'Not Equal',
+												value: 'NEQ',
+											},
+										],
+										default: 'EQ',
+									},
+									{
+										displayName: 'Value',
+										name: 'value',
+										displayOptions: {
+											hide: {
+												operator: ['HAS_PROPERTY', 'NOT_HAS_PROPERTY'],
+											},
+										},
+										required: true,
+										type: 'string',
+										default: '',
+									},
+								],
+							},
+						],
+						description:
+							'Use filters to limit the results to only CRM objects with matching property values. More info <a href="https://developers.hubspot.com/docs/api/crm/search">here</a>.',
+					},
+				],
+			},
+		],
+		description:
+			'When multiple filters are provided within a Filter Group, they will be combined using a logical AND operator. When multiple Filter Groups are provided, they will be combined using a logical OR operator. The system supports a maximum of three Filter Groups with up to three filters each. More info <a href="https://developers.hubspot.com/docs/api/crm/search">here</a>',
+	},
+	{
+		displayName: 'Options',
+		name: 'additionalFields',
+		type: 'collection',
+		placeholder: 'Add option',
+		default: {},
+		displayOptions: {
+			show: {
+				resource: ['contact'],
+				operation: ['search'],
+			},
+		},
+		options: [
+			{
+				displayName: 'Sort Order',
+				name: 'direction',
+				type: 'options',
+				options: [
+					{
+						name: 'Ascending',
+						value: 'ASCENDING',
+					},
+					{
+						name: 'Descending',
+						value: 'DESCENDING',
+					},
+				],
+				default: 'DESCENDING',
+				description:
+					'Defines the direction in which search results are ordered. Default value is Descending.',
+			},
+			{
+				displayName: 'Field Names or IDs',
+				name: 'properties',
+				type: 'multiOptions',
+				typeOptions: {
+					loadOptionsMethod: 'getContactProperties',
+				},
+				default: ['firstname', 'lastname', 'email'],
+				description:
+					'Whether to include specific Contact properties in the returned results. Choose from a list, or specify IDs using an <a href="https://docs.n8n.io/code/expressions/">expression</a>. Choose from the list, or specify IDs using an <a href="https://docs.n8n.io/code/expressions/">expression</a>.',
+			},
+			{
+				displayName: 'Query',
+				name: 'query',
+				type: 'string',
+				default: '',
+				description: 'Perform a text search against all property values for an object type',
+			},
+			{
+				// eslint-disable-next-line n8n-nodes-base/node-param-display-name-wrong-for-dynamic-options
+				displayName: 'Sort By',
+				name: 'sortBy',
+				type: 'options',
+				description:
+					'Choose from the list, or specify an ID using an <a href="https://docs.n8n.io/code/expressions/">expression</a>',
+				typeOptions: {
+					loadOptionsMethod: 'getContactProperties',
+				},
+				default: 'createdate',
+			},
+		],
 	},
 ];

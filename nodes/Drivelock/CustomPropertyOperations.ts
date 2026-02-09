@@ -63,27 +63,21 @@ export const customPropertyOperations: INodeProperties[] = [
 		},
 		options: [
 			{
-				name: 'Check',
+				name: 'Check Extention Properties',
 				value: 'check',
-				description: 'Check a Custom Property',
-				action: 'Check a custom property',
+				description: 'Check Custom Property in the Scheme and create or update it',
+				action: 'Check extention properties and create or update it',
 			},
 			{
-				name: 'Delete',
+				name: 'Delete Custom Data',
 				value: 'delete',
-				description: 'Delete an Custom Property',
+				description: 'Delete Custom Property',
 				action: 'Delete an custom property',
 			},
-			// {
-			// 	name: 'Get Many',
-			// 	value: 'getAll',
-			// 	description: 'Get Many Custom Properties',
-			// 	action: 'Get many custom properties',
-			// },
 			{
-				name: 'Update',
+				name: 'Set Custom Data',
 				value: 'update',
-				description: 'Update Custom Property',
+				description: 'Update Values Custom Property',
 				action: 'Update custom properties',
 			}
 		],
@@ -247,6 +241,12 @@ export const customPropertyOperations: INodeProperties[] = [
 		},
 		required: true,
 		default: {},
+		displayOptions: {
+			show: {
+				resource: ['customproperty'],
+				operation: ['update'],
+			},
+		},
 		options: [
 			{
 				name: 'customPropertiesValues',
