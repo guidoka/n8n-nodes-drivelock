@@ -17,30 +17,18 @@ export const groupOperations: INodeProperties[] = [
         options: [
             {
                 name: 'Add Computers to Group',
-                value: 'addComputers',
-                description: 'Add computers to a group',
+                value: 'addComputersToGroup',
+                description: 'Add computers to a group by computer names',
                 action: 'Add computers to group',
             },
             {
-                name: 'Remove Computers From Group',
-                value: 'removeComputers',
-                description: 'Remove computers from a group',
-                action: 'Remove computers from group',
-            },
-            {
-                name: 'Get Group Members',
-                value: 'getMembers',
-                description: 'Get all members of a group',
-                action: 'Get group members',
-            },
-            {
-                name: 'Set Group Members',
-                value: 'setMembers',
-                description: 'Replace all group members',
-                action: 'Set group members',
+                name: 'Remove Group Memberships',
+                value: 'removeGroupMemberships',
+                description: 'Remove group memberships by membership IDs',
+                action: 'Remove group memberships',
             },
         ],
-        default: 'addComputers',
+        default: 'addComputersToGroup',
     },
 
     // Group Common Fields
@@ -51,26 +39,43 @@ export const groupOperations: INodeProperties[] = [
         displayOptions: {
             show: {
                 resource: ['group'],
+                operation: ['addComputersToGroup'],
             },
         },
         default: '',
         required: true,
-        description: 'The unique identifier of the group',
+        description: 'The unique identifier (UUID) of the group',
     },
 
-    // Add/Remove/Set Computers
+    // Add Computers - Memberships
     {
-        displayName: 'Computer IDs',
-        name: 'computerIds',
+        displayName: 'Memberships',
+        name: 'memberships',
+        type: 'json',
+        displayOptions: {
+            show: {
+                resource: ['group'],
+                operation: ['addComputersToGroup'],
+            },
+        },
+        default: '[\n  {\n    "name": "COMPUTER-NAME",\n    "isExclude": false,\n    "comment": ""\n  }\n]',
+        required: true,
+        description: 'Array of computer memberships (name, isExclude, comment)',
+    },
+
+    // Remove Memberships - IDs
+    {
+        displayName: 'Membership IDs',
+        name: 'membershipIds',
         type: 'string',
         displayOptions: {
             show: {
                 resource: ['group'],
-                operation: ['addComputers', 'removeComputers', 'setMembers'],
+                operation: ['removeGroupMemberships'],
             },
         },
         default: '',
         required: true,
-        description: 'Comma-separated list of computer IDs (UUIDs) to add/remove/set',
+        description: 'Comma-separated list of membership IDs (UUIDs) to remove',
     },
 ];

@@ -1,4 +1,5 @@
 import type { INodeProperties } from 'n8n-workflow';
+//import { entityBinariesOperations } from './EntityBinariesOperations';
 
 export const entityOperations: INodeProperties[] = [
     // =====================================
@@ -64,6 +65,10 @@ export const entityOperations: INodeProperties[] = [
                 value: 'Computers',
             },
             {
+                name: 'Defined Group Memberships',
+                value: 'DefinedGroupMemberships',
+            },
+            {
                 name: 'Devices',
                 value: 'Devices',
             },
@@ -85,7 +90,7 @@ export const entityOperations: INodeProperties[] = [
             },
             {
                 name: 'Software',
-                value: 'Software',
+                value: 'Softwares',
             },
             {
                 name: 'Users',
@@ -109,6 +114,7 @@ export const entityOperations: INodeProperties[] = [
             show: {
                 resource: ['entity'],
                 operation: ['getById'],
+                // entityName: ['Computers','Devices','DriveLockConfigs','Drives', 'Events','Groups','Softwares','Users','WhiteLists']
             },
         },
         default: '',
@@ -123,6 +129,7 @@ export const entityOperations: INodeProperties[] = [
             show: {
                 resource: ['entity'],
                 operation: ['getById'],
+                // entityName: ['Computers','Devices','DefinedGroupMemberships','DriveLockConfigs','Drives', 'Events','Groups','Softwares','Users','WhiteLists']
             },
         },
         default: false,
@@ -140,6 +147,7 @@ export const entityOperations: INodeProperties[] = [
             show: {
                 resource: ['entity'],
                 operation: ['getList', 'getCount', 'export'],
+                // entityName: ['Computers','Devices','DefinedGroupMemberships','DriveLockConfigs','Drives', 'Events','Groups','Softwares','Users','WhiteLists']
             },
         },
         // eslint-disable-next-line n8n-nodes-base/node-param-collection-type-unsorted-items
@@ -219,6 +227,7 @@ export const entityOperations: INodeProperties[] = [
             show: {
                 resource: ['entity'],
                 operation: ['export'],
+                // entityName: ['Computers','Devices','DefinedGroupMemberships','DriveLockConfigs','Drives', 'Events','Groups','Softwares','Users','WhiteLists']
             },
         },
         options: [
@@ -244,6 +253,7 @@ export const entityOperations: INodeProperties[] = [
             show: {
                 resource: ['entity'],
                 operation: ['export'],
+                // entityName: ['Computers','Devices','DefinedGroupMemberships','DriveLockConfigs','Drives', 'Events','Groups','Softwares','Users','WhiteLists']
             },
         },
         options: [
@@ -289,5 +299,6 @@ export const entityOperations: INodeProperties[] = [
                 description: 'Language for headers and values',
             },
         ],
-    },    
+    },
+    // ...entityBinariesOperations
 ];

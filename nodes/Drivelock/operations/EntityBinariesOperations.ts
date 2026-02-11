@@ -1,26 +1,6 @@
 import type { INodeProperties } from 'n8n-workflow';
 
-export const binariesOperations: INodeProperties[] = [
-	{
-		displayName: 'Operation',
-		name: 'operation',
-		type: 'options',
-		noDataExpression: true,
-		displayOptions: {
-			show: {
-				resource: ['binaries'],
-			},
-		},
-		options: [
-			{
-				name: 'Get Many',
-				value: 'getAll',
-				description: 'Get Many Binaries',
-				action: 'Get many acbinaries',
-			},
-		],
-		default: 'getAll',
-	},
+export const entityBinariesOperations: INodeProperties[] = [
 	/* -------------------------------------------------------------------------- */
 	/*                                 binaries:getAll                             */
 	/* -------------------------------------------------------------------------- */
@@ -30,21 +10,9 @@ export const binariesOperations: INodeProperties[] = [
 		type: 'boolean',
 		displayOptions: {
 			show: {
-				resource: ['binaries'],				
-				operation: ['getAll'],
-			},
-		},
-		default: true,
-		description: 'Whether to return all results or only up to a given limit',
-	},
-	{
-		displayName: 'Get Full Object Return',
-		name: 'getFullObject',
-		type: 'boolean',
-		displayOptions: {
-			show: {
-				resource: ['binaries'],				
-				operation: ['getAll'],
+				resource: ['entity'],
+				operation: ['getList'],
+				entityName: ['AcBinaries'],
 			},
 		},
 		default: true,
@@ -56,8 +24,9 @@ export const binariesOperations: INodeProperties[] = [
 		type: 'number',
 		displayOptions: {
 			show: {
-				resource: ['binaries'],				
-				operation: ['getAll'],
+				resource: ['entity'],
+				operation: ['getList'],
+				entityName: ['AcBinaries'],
 				returnAll: [false],
 			},
 		},
@@ -69,19 +38,34 @@ export const binariesOperations: INodeProperties[] = [
 		description: 'Max number of results to return',
 	},
 	{
+		displayName: 'Get Full Object Return',
+		name: 'getFullObject',
+		type: 'boolean',
+		displayOptions: {
+			show: {
+				resource: ['entity'],
+				operation: ['getList'],
+				entityName: ['AcBinaries'],
+			},
+		},
+		default: true,
+		description: 'Whether to return all results or only up to a given limit',
+	},
+	{
 		displayName: 'Properties to Include',
 		name: 'properties',
 		type: 'multiOptions',
 		default: [],
 		displayOptions: {
 			show: {
-				resource: ['binaries'],
-				operation: ['getAll'],
+				resource: ['entity'],
+				operation: ['getList'],
+				entityName: ['AcBinaries'],
 				getFullObject: [false],
 			},
 		},
 		description:
-			'Whether to include specific properties in the returned results. Choose from a list, or specify IDs using an <a href="https://docs.n8n.io/code/expressions/">expression</a>. Choose from the list, or specify IDs using an <a href="https://docs.n8n.io/code/expressions/">expression</a>.',
+			'Whether to include specific Company properties in the returned results. Choose from a list, or specify IDs using an <a href="https://docs.n8n.io/code/expressions/">expression</a>. Choose from the list, or specify IDs using an <a href="https://docs.n8n.io/code/expressions/">expression</a>.',
  		//eslint-disable-next-line n8n-nodes-base/node-param-multi-options-type-unsorted-items	
 		options: [
 			{
@@ -120,14 +104,14 @@ export const binariesOperations: INodeProperties[] = [
 				name: 'Nested Filter',
 				value: 'associatedRule'
 			},
-			// {
-			// 	name: 'AcCertificates (Relation)',
-			// 	value: 'acCertificates.*'
-			// },
-			// {
-			// 	name: 'AcFile (Relation)',
-			// 	value: 'acFile.*'
-			// },				
+			{
+				name: 'AcCertificates (Relation)',
+				value: 'acCertificates.*'
+			},
+			{
+				name: 'AcFile (Relation)',
+				value: 'acFile.*'
+			},				
 		]
 		
 	},
@@ -138,15 +122,16 @@ export const binariesOperations: INodeProperties[] = [
 		default: [],
 		displayOptions: {
 			show: {
-				resource: ['binaries'],
-				operation: ['getAll'],
+				resource: ['entity'],
+				operation: ['getList'],
+				entityName: ['AcBinaries'],
 				getFullObject: [false],
 			},
 		},
 		description:
-			'Whether to include specific properties in the returned results. Choose from a list, or specify IDs using an <a href="https://docs.n8n.io/code/expressions/">expression</a>. Choose from the list, or specify IDs using an <a href="https://docs.n8n.io/code/expressions/">expression</a>.',
+			'Whether to include specific Company properties in the returned results. Choose from a list, or specify IDs using an <a href="https://docs.n8n.io/code/expressions/">expression</a>. Choose from the list, or specify IDs using an <a href="https://docs.n8n.io/code/expressions/">expression</a>.',
 		typeOptions: {
-			loadOptionsMethod: 'getSchemaExtentions',
+			loadOptionsMethod: 'getEntityExtentions',
 		},
 	
 	},
@@ -161,8 +146,9 @@ export const binariesOperations: INodeProperties[] = [
 		},
 		displayOptions: {
 			show: {
-				resource: ['binaries'],
-				operation: ['getAll'],
+				resource: ['entity'],
+				operation: ['getList'],
+				entityName: ['AcBinaries'],
 			},
 		},
 		options: [
@@ -192,7 +178,7 @@ export const binariesOperations: INodeProperties[] = [
 										description:
 											'Choose from the list, or specify an ID using an <a href="https://docs.n8n.io/code/expressions/">expression</a>',
 										typeOptions: {
-											loadOptionsMethod: 'getBinaryProps',
+											loadOptionsMethod: 'getContactPropertiesWithType',
 										},
 										default: '',
 									},
@@ -301,13 +287,13 @@ export const binariesOperations: INodeProperties[] = [
 							},
 						],
 						description:
-							'Use filters to limit the results to only objects with matching property values. More info <a href="https://www.drivelock.com">here</a>.',
+							'Use filters to limit the results to only CRM objects with matching property values. More info <a href="https://developers.hubspot.com/docs/api/crm/search">here</a>.',
 					},
 				],
 			},
 		],
 		description:
-			'When multiple filters are provided within a Filter Group, they will be combined using a logical AND operator. When multiple Filter Groups are provided, they will be combined using a logical OR operator.',
+			'When multiple filters are provided within a Filter Group, they will be combined using a logical AND operator. When multiple Filter Groups are provided, they will be combined using a logical OR operator. The system supports a maximum of three Filter Groups with up to three filters each. More info <a href="https://developers.hubspot.com/docs/api/crm/search">here</a>',
 	},
 	{
 		displayName: 'Options',
@@ -317,8 +303,9 @@ export const binariesOperations: INodeProperties[] = [
 		default: {},
 		displayOptions: {
 			show: {
-				resource: ['binaries'],
-				operation: ['getAll'],
+				resource: ['entity'],
+				operation: ['getList'],
+				entityName: ['AcBinaries'],
 			},
 		},
 		options: [
@@ -329,27 +316,27 @@ export const binariesOperations: INodeProperties[] = [
 				options: [
 					{
 						name: 'Ascending',
-						value: 'ASCENDING',
+						value: '+',
 					},
 					{
 						name: 'Descending',
-						value: 'DESCENDING',
+						value: '-',
 					},
 				],
-				default: 'DESCENDING',
+				default: '+',
 				description:
-					'Defines the direction in which search results are ordered. Default value is Descending.',
+					'Defines the direction in which search results are ordered. Default value is Ascending.',
 			},
 			{
 				displayName: 'Field Names or IDs',
 				name: 'properties',
 				type: 'multiOptions',
 				typeOptions: {
-					loadOptionsMethod: 'getBinaryProps',
+					loadOptionsMethod: 'getContactProperties',
 				},
-				default: [],
+				default: [],//z.b. 'firstname', 'lastname', 'email'
 				description:
-					'Whether to include specific Contact properties in the returned results. Choose from a list, or specify IDs using an <a href="https://docs.n8n.io/code/expressions/">expression</a>. Choose from the list, or specify IDs using an <a href="https://docs.n8n.io/code/expressions/">expression</a>.',
+					'Whether to include specific properties in the returned results. Choose from a list, or specify IDs using an <a href="https://docs.n8n.io/code/expressions/">expression</a>. Choose from the list, or specify IDs using an <a href="https://docs.n8n.io/code/expressions/">expression</a>.',
 			},
 			{
 				displayName: 'Query',
@@ -366,9 +353,9 @@ export const binariesOperations: INodeProperties[] = [
 				description:
 					'Choose from the list, or specify an ID using an <a href="https://docs.n8n.io/code/expressions/">expression</a>',
 				typeOptions: {
-					loadOptionsMethod: 'getBinaryProps',
+					loadOptionsMethod: 'getContactProperties',
 				},
-				default: '',
+				default: 'createdate',
 			},
 		],
 	},

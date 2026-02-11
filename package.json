@@ -35,8 +35,7 @@
       "dist/credentials/DrivelockApi.credentials.js"
     ],
     "nodes": [
-      "dist/nodes/DriveLock/Drivelock.node.js",
-      "dist/nodes/DriveLock/Drivelockrawapi.node.ts"
+      "dist/nodes/DriveLock/Drivelock.node.js"
     ]
   },
   "devDependencies": {
