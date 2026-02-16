@@ -1,38 +1,30 @@
-//import { snakeCase } from 'change-case';
-
 import type {
 	INodeType,
 	INodeTypeDescription,
-    IExecuteFunctions,
-    INodeExecutionData,
-    // JsonObject,
-	// ICredentialDataDecryptedObject,
-	// ICredentialsDecrypted,
-	// ICredentialTestFunctions, 
-	// INodeCredentialTestResult,
+	IExecuteFunctions,
+	INodeExecutionData,
 	IDataObject,
-	//GenericValue,
-    ILoadOptionsFunctions,
-    INodePropertyOptions,
+	ILoadOptionsFunctions,
+	INodePropertyOptions,
 } from 'n8n-workflow';
-
-import {
-    driveLockApiRequest,
-	// driveLockApiRequestAllItems,
-	// isBase64,
-	// validateJSON,
-    // validateCredentials,
-} from './helper/GenericFunctions';
 
 import {
 	NodeApiError,
 	NodeConnectionTypes,
 	NodeOperationError,
-    // LoggerProxy as Logger,
 } from 'n8n-workflow';
 
+import { driveLockApiRequest } from './helper/GenericFunctions';
+import { buildFilterQuery, FilterGroupsParam } from './helper/FilterBuilder';
+import { parseJsonParameter, validateCommaSeparatedIds } from './helper/ValidationHelpers';
 import * as customPropHelper from './helper/CustomPropertyHelper';
-import { DriveLockItem, CustomPropsResponse, CustomProps, ExtensionGroup, DriveLockQuery } from './helper/utils';
+import {
+	DriveLockItem,
+	CustomPropsResponse,
+	CustomProps,
+	ExtensionGroup,
+	DriveLockQuery,
+} from './helper/utils';
 
 import { applicationRuleOperations } from './operations/ApplicationRuleOperations';
 import { binariesOperations } from './operations/BinariesOperations';
@@ -44,34 +36,130 @@ import { entityOperations } from './operations/EntityOperations';
 import { groupOperations } from './operations/GroupOperations';
 import { policyOperations } from './operations/PolicyOperations';
 
+/**
+ * Safely extract response data and avoid circular references.
+ * Normalizes API responses into a consistent shape with a `success` flag.
+ */
+function extractResponseData(response: unknown): IDataObject {
+	if (!response) return { success: true };
+	if (typeof response === 'string') return { data: response };
+
+	if (typeof response === 'object' && response !== null) {
+		const responseObj = response as Record<string, unknown>;
+		const { errorId, error, data, total, additionalInfo, ...rest } = responseObj;
+
+		const result: IDataObject = {
+			success: !error,
+		};
+
+		if (errorId !== undefined && errorId !== null) result.errorId = errorId;
+		if (error !== undefined && error !== null) result.error = error;
+		if (data !== undefined) result.data = data;
+		if (total !== undefined) result.total = total;
+		if (additionalInfo !== undefined && additionalInfo !== null) {
+			result.additionalInfo = additionalInfo;
+		}
+
+		for (const key of Object.keys(rest)) {
+			if (rest[key] !== undefined && rest[key] !== null) {
+				result[key] = rest[key];
+			}
+		}
+
+		return result;
+	}
+
+	return { success: true, data: response };
+}
+
+/**
+ * Determine rule sub-path and body key from the operation name.
+ */
+function getControlRuleConfig(operation: string): { ruleSubPath: string; bodyKey: string } {
+	if (operation.includes('Collection')) {
+		return { ruleSubPath: 'collections', bodyKey: 'collections' };
+	}
+	if (operation.includes('Behavior')) {
+		return { ruleSubPath: 'behaviorRules', bodyKey: 'rules' };
+	}
+	return { ruleSubPath: 'rules', bodyKey: 'rules' };
+}
+
+/**
+ * Shared handler for applicationControl, deviceControl, and driveControl rule CRUD.
+ */
+async function executeControlRuleOperation(
+	execFns: IExecuteFunctions,
+	controlPath: string,
+	dataParamName: string,
+	operation: string,
+	i: number,
+): Promise<IDataObject> {
+	const configId = execFns.getNodeParameter('configId', i) as string;
+	const configVersion = execFns.getNodeParameter('configVersion', i) as number;
+	const { ruleSubPath, bodyKey } = getControlRuleConfig(operation);
+	const basePath = `/api/administration/${controlPath}/${ruleSubPath}`;
+
+	if (operation.startsWith('get')) {
+		const qs: IDataObject = {};
+		if (configVersion > 0) qs.configVersion = configVersion;
+
+		const response = await driveLockApiRequest.call(
+			execFns, 'GET', `${basePath}/${configId}`, {}, qs,
+		);
+		return extractResponseData(response);
+	}
+
+	if (operation.startsWith('create') || operation.startsWith('update')) {
+		const dataStr = execFns.getNodeParameter(dataParamName, i) as string;
+		const parsedData = parseJsonParameter(dataStr, execFns.getNode(), i, dataParamName) as IDataObject;
+
+		const body: IDataObject = { configId };
+		if (configVersion > 0) body.configVersion = configVersion;
+		body[bodyKey] = parsedData;
+
+		const method = operation.startsWith('create') ? 'POST' : 'PATCH';
+		const response = await driveLockApiRequest.call(execFns, method, basePath, body);
+		return extractResponseData(response);
+	}
+
+	if (operation.startsWith('delete')) {
+		const ruleIdsStr = execFns.getNodeParameter('ruleIds', i) as string;
+		const ruleIds = validateCommaSeparatedIds(ruleIdsStr, execFns.getNode(), i, 'ruleIds');
+
+		const body: IDataObject = { configId, ruleIds };
+		if (configVersion > 0) body.configVersion = configVersion;
+
+		const response = await driveLockApiRequest.call(execFns, 'DELETE', basePath, body);
+		return extractResponseData(response);
+	}
+
+	throw new NodeOperationError(execFns.getNode(), `Unknown operation: ${operation}`);
+}
+
 
 export class Drivelock implements INodeType {
 	description: INodeTypeDescription = {
-        displayName: 'DriveLock API',
-        name: 'drivelock',
-        icon: 'file:drivelock.svg',
-        group: ['transform'],
-        version: [1],
-        defaultVersion: 1,        
-        subtitle: '={{$if($parameter["operation"], $parameter["operation"] + " : ", "") + $parameter["resource"]}}',
-        description: 'Consume DriveLock API',
-        defaults: {
-            name: 'DriveLock API',
-        },
+		displayName: 'DriveLock API',
+		name: 'drivelock',
+		icon: 'file:drivelock.svg',
+		group: ['transform'],
+		version: [1],
+		defaultVersion: 1,
+		subtitle: '={{$if($parameter["operation"], $parameter["operation"] + " : ", "") + $parameter["resource"]}}',
+		description: 'Consume DriveLock API',
+		defaults: {
+			name: 'DriveLock API',
+		},
 		inputs: [NodeConnectionTypes.Main],
 		outputs: [NodeConnectionTypes.Main],
 		credentials: [
 			{
 				name: 'driveLockApi',
 				required: true,
-                testedBy: 'driveLockApiTest',
-				// displayOptions: {
-				// 	show: {
-				// 		resource: ['computers','users','devices','software','binaries','customproperty']
-				// 	},
-				// },				
-			}
-        ],
+				testedBy: 'driveLockApiTest',
+			},
+		],
 		usableAsTool: true,
 		properties: [
 			{
@@ -95,6 +183,11 @@ export class Drivelock implements INodeType {
 						name: 'Device Rule',
 						value: 'deviceRules',
 						description: 'Manage device rules',
+					},
+					{
+						name: 'Drive Rule',
+						value: 'driveRules',
+						description: 'Manage drive rules',
 					},
 					{
 						name: 'Binary',
@@ -148,7 +241,7 @@ export class Drivelock implements INodeType {
 					},
 				],
 				default: 'changeoutput',
-			},	
+			},
 			...applicationRuleOperations,
 			...binariesOperations,
 			...computerOperations,
@@ -158,270 +251,294 @@ export class Drivelock implements INodeType {
 			...entityOperations,
 			...groupOperations,
 			...policyOperations,
-        ],
-	}
+		],
+	};
 
 	methods = {
-		// credentialTest: {
-		// 	async driveLockApiTest(
-		// 		this: ICredentialTestFunctions,
-		// 		credential: ICredentialsDecrypted,
-		// 	): Promise<INodeCredentialTestResult> {
-		// 		try {
-		// 			await validateCredentials.call(this, credential.data as ICredentialDataDecryptedObject);
-		// 		} catch (error) {
-		// 			const err = error as JsonObject;
-		// 			if (err.statusCode === 401) {
-		// 				return {
-		// 					status: 'Error',
-		// 					message: 'Invalid credentials',
-		// 				};
-		// 			}
-		// 		}
-		// 		return {
-		// 			status: 'OK',
-		// 			message: 'Authentication successful',
-		// 		};
-		// 	},
-		// },
 		loadOptions: {
-			
 			async getBinaryProps(
 				this: ILoadOptionsFunctions,
 			): Promise<INodePropertyOptions[]> {
-				
-				const returnData: INodePropertyOptions[] = [];
-
 				const allOptions = (binariesOperations.find(
-  				field => field.name === 'properties'
+					(field) => field.name === 'properties',
 				)?.options || []) as Array<{ name: string; value: string }>;
 
-				const allValues = allOptions.map(option => option.value);
-
-				Object.entries(allValues).forEach(([, name]) => {
-					const propertyName = name
-					const propertyId = name
-					returnData.push({
-						name: propertyName,
-						value: propertyId,
-					});
-				});
-				return returnData;
+				return allOptions.map((option) => ({
+					name: option.value,
+					value: option.value,
+				}));
 			},
 
-			// Get all the company custom properties to display them to user so that they can
-			// select them easily
 			async getSchemaExtentions(
 				this: ILoadOptionsFunctions,
 			): Promise<INodePropertyOptions[]> {
-				
-				const returnData: INodePropertyOptions[] = [];
-				
-
-				const customSchemes = await (driveLockApiRequest<CustomPropsResponse>).call(this, 'GET', '/api/administration/entity/customSchema/getCustomSchemas', {});
+				const customSchemes = await (driveLockApiRequest<CustomPropsResponse>).call(
+					this, 'GET', '/api/administration/entity/customSchema/getCustomSchemas', {},
+				);
 
 				const resource = this.getNodeParameter('resource');
-				
-				let  schemaExtention;
-				if (resource=="customproperty") {
-					const schema  = this.getNodeParameter('schema') as string;
+
+				let schemaExtention: string;
+				if (resource === 'customproperty') {
+					const schema = this.getNodeParameter('schema') as string;
 					schemaExtention = `${schema}Extensions`;
-				} else if (resource == "binaries"){
-					schemaExtention = `AcBinariesExtensions`;
+				} else if (resource === 'binaries') {
+					schemaExtention = 'AcBinariesExtensions';
+				} else {
+					throw new NodeApiError(this.getNode(), {
+						message: `Unsupported resource for schema extensions: ${resource}`,
+					});
 				}
 
 				if (Array.isArray(customSchemes.data)) {
-					throw new NodeApiError(this.getNode(), { message: "invalid API response. data should be an object" });
+					throw new NodeApiError(this.getNode(), { message: 'invalid API response. data should be an object' });
 				} else if (!customSchemes.data.customProps) {
-					throw new NodeApiError(this.getNode(), { message: "invalid API response. object is missing" });
+					throw new NodeApiError(this.getNode(), { message: 'invalid API response. object is missing' });
 				}
 
-				const extensionGroupItems: ExtensionGroup = customSchemes.data.customProps?.[schemaExtention as string] as ExtensionGroup;
+				const extensionGroupItems: ExtensionGroup | undefined =
+					customSchemes.data.customProps[schemaExtention] as ExtensionGroup | undefined;
 
-				Object.entries(extensionGroupItems).forEach(([key, ]) => {
-					const propertyName = key
-					const propertyId = key
-					returnData.push({
-						name: propertyName,
-						value: propertyId,
+				if (!extensionGroupItems) {
+					throw new NodeApiError(this.getNode(), {
+						message: `Schema extension '${schemaExtention}' not found`,
 					});
-				});
-				return returnData;
+				}
+
+				return Object.keys(extensionGroupItems).map((key) => ({
+					name: key,
+					value: key,
+				}));
 			},
+
 			async getEntityExtentions(
 				this: ILoadOptionsFunctions,
 			): Promise<INodePropertyOptions[]> {
-				
-				const returnData: INodePropertyOptions[] = [];
-				
-
-				const customSchemes = await (driveLockApiRequest<CustomPropsResponse>).call(this, 'GET', '/api/administration/entity/customSchema/getCustomSchemas', {});
+				const customSchemes = await (driveLockApiRequest<CustomPropsResponse>).call(
+					this, 'GET', '/api/administration/entity/customSchema/getCustomSchemas', {},
+				);
 
 				const entityName = this.getNodeParameter('entityName');
-				const  schemaExtention = `${entityName}Extensions`;
+				const schemaExtention = `${entityName}Extensions`;
 
 				if (Array.isArray(customSchemes.data)) {
-					throw new NodeApiError(this.getNode(), { message: "invalid API response. data should be an object" });
+					throw new NodeApiError(this.getNode(), { message: 'invalid API response. data should be an object' });
 				} else if (!customSchemes.data.customProps) {
-					throw new NodeApiError(this.getNode(), { message: "invalid API response. object is missing" });
+					throw new NodeApiError(this.getNode(), { message: 'invalid API response. object is missing' });
 				}
 
-				const extensionGroupItems: ExtensionGroup = customSchemes.data.customProps?.[schemaExtention as string] as ExtensionGroup;
+				const extensionGroupItems: ExtensionGroup | undefined =
+					customSchemes.data.customProps[schemaExtention] as ExtensionGroup | undefined;
 
-				Object.entries(extensionGroupItems).forEach(([key, ]) => {
-					const propertyName = key
-					const propertyId = key
-					returnData.push({
-						name: propertyName,
-						value: propertyId,
+				if (!extensionGroupItems) {
+					throw new NodeApiError(this.getNode(), {
+						message: `Schema extension '${schemaExtention}' not found`,
 					});
-				});
-				return returnData;
-			},			
-        },
-	}; 
+				}
+
+				return Object.keys(extensionGroupItems).map((key) => ({
+					name: key,
+					value: key,
+				}));
+			},
+
+			async getComputerIds(
+				this: ILoadOptionsFunctions,
+			): Promise<INodePropertyOptions[]> {
+				const response = await (driveLockApiRequest<DriveLockItem[]>).call(
+					this,
+					'GET',
+					'/api/administration/entity/Computers',
+					{},
+					{ take: 200, select: 'id,name', getTotalCount: false },
+				);
+
+				if (!Array.isArray(response.data)) return [];
+
+				return response.data.map((item) => ({
+					name: (item.name as string) ?? (item.id as string) ?? 'Unknown',
+					value: (item.id as string) ?? '',
+				}));
+			},
+
+			async getEntityIds(
+				this: ILoadOptionsFunctions,
+			): Promise<INodePropertyOptions[]> {
+				const entityName = this.getNodeParameter('entityName', 0) as string;
+				const response = await (driveLockApiRequest<DriveLockItem[]>).call(
+					this,
+					'GET',
+					`/api/administration/entity/${entityName}`,
+					{},
+					{ take: 200, select: 'id,name', getTotalCount: false },
+				);
+
+				if (!Array.isArray(response.data)) return [];
+
+				return response.data.map((item) => ({
+					name: (item.name as string) ?? (item.id as string) ?? 'Unknown',
+					value: (item.id as string) ?? '',
+				}));
+			},
+
+			async getDeviceRuleIds(
+				this: ILoadOptionsFunctions,
+			): Promise<INodePropertyOptions[]> {
+				const qs: IDataObject = { take: 200, select: 'id,name', getTotalCount: false };
+				try {
+					const configId = this.getNodeParameter('configId', 0) as string;
+					if (configId) qs.configId = configId;
+				} catch { /* configId not available in getRule context */ }
+				try {
+					const configVersion = this.getNodeParameter('configVersion', 0) as number;
+					if (configVersion) qs.configVersion = configVersion;
+				} catch { /* configVersion not available in getRule context */ }
+				const response = await (driveLockApiRequest<DriveLockItem[]>).call(
+					this,
+					'GET',
+					'/api/administration/deviceControl/rules',
+					{},
+					qs,
+				);
+
+				if (!Array.isArray(response.data)) return [];
+
+				return response.data.map((item) => ({
+					name: (item.name as string) ?? (item.id as string) ?? 'Unknown',
+					value: (item.id as string) ?? '',
+				}));
+			},
+
+			async getDriveRuleIds(
+				this: ILoadOptionsFunctions,
+			): Promise<INodePropertyOptions[]> {
+				const qs: IDataObject = { take: 200, select: 'id,name', getTotalCount: false };
+				try {
+					const configId = this.getNodeParameter('configId', 0) as string;
+					if (configId) qs.configId = configId;
+				} catch { /* configId not available in getRule context */ }
+				try {
+					const configVersion = this.getNodeParameter('configVersion', 0) as number;
+					if (configVersion) qs.configVersion = configVersion;
+				} catch { /* configVersion not available in getRule context */ }
+				const response = await (driveLockApiRequest<DriveLockItem[]>).call(
+					this,
+					'GET',
+					'/api/administration/driveControl/rules',
+					{},
+					qs,
+				);
+
+				if (!Array.isArray(response.data)) return [];
+
+				return response.data.map((item) => ({
+					name: (item.name as string) ?? (item.id as string) ?? 'Unknown',
+					value: (item.id as string) ?? '',
+				}));
+			},
+		},
+	};
 
 	async execute(this: IExecuteFunctions): Promise<INodeExecutionData[][]> {
-		
 		const items = this.getInputData();
-		//const returnData: INodeExecutionData[] = [];
 		const returnData: IDataObject[] = [];
 
 		const length = items.length;
 
 		const resource = this.getNodeParameter('resource', 0) as string;
-		const operation = this.getNodeParameter('operation', 0) as string;		
-
-		const credentialType = 'driveLockApi';
-		const credentials = await this.getCredentials(credentialType);
-		const baseUrl = (credentials.baseUrl as string || 'https://api.drivelock.cloud').replace(/\/$/, '');		
-
-		// Helper function to safely extract response data and avoid circular references
-		const extractResponseData = (response: unknown): IDataObject => {
-
-
-			if (!response) return { success: true };
-			if (typeof response === 'string') return { data: response };
-
-			if (typeof response === 'object' && response !== null) {
-				// Remove circular references and only keep serializable data
-				const responseObj = response as Record<string, unknown>;
-				const { errorId, error, data, total, additionalInfo, ...rest } = responseObj;
-				
-				const result: IDataObject = {
-					success: !error,
-				};
-				
-				if (errorId !== undefined && errorId !== null) {
-					result.errorId = errorId;
-				}
-				if (error !== undefined && error !== null) {
-					result.error = error;
-				}
-				if (data !== undefined) {
-					result.data = data;
-				}
-				if (total !== undefined) {
-					result.total = total;
-				}
-				if (additionalInfo !== undefined && additionalInfo !== null) {
-					result.additionalInfo = additionalInfo;
-				}
-				
-				// Add remaining properties
-				Object.keys(rest).forEach(key => {
-					if (rest[key] !== undefined && rest[key] !== null) {
-						result[key] = rest[key];
-					}
-				});
-				
-				return result;
-			}
-			return { success: true, data: response };
-		};		
+		const operation = this.getNodeParameter('operation', 0) as string;
 
 		for (let i = 0; i < length; i++) {
-
 			try {
-
-				// const resource = this.getNodeParameter('resource', i);
-				// const operation = this.getNodeParameter('operation', i);
 
 				if (resource === 'tool') {
 
 					if (operation === 'changeoutput') {
-						const items = this.getInputData();
-
-						const returnData = items.flatMap((item) => {
+						const toolOutput = items.flatMap((item) => {
 							const dataArray = item?.json?.data;
-							
+
 							if (!Array.isArray(dataArray)) {
 								return [];
 							}
-							
-							return dataArray.map((dataItem: unknown) => ({ 
-								json: dataItem as IDataObject 
+
+							return dataArray.map((dataItem: unknown) => ({
+								json: dataItem as IDataObject,
 							}));
 						});
 
-						return [returnData];
+						return [toolOutput];
 					}
 
 				} else if (resource === 'customproperty') {
 
-					
-
-					const schema  = this.getNodeParameter('schema', i) as string;
-					const schemaExtention = `${schema}Extensions`; //Check is on Extensions
+					const schema = this.getNodeParameter('schema', i) as string;
+					const schemaExtention = `${schema}Extensions`;
 
 					if (operation === 'check') {
 
-						const createOrUpdateIfNotExists = this.getNodeParameter('createOrUpdateIfNotExists', i);
+						const createOrUpdateIfNotExists = this.getNodeParameter('createOrUpdateIfNotExists', i) as boolean;
 						const customProperties = (this.getNodeParameter('customProperties', i) as IDataObject).customPropertyValues as IDataObject[];
 
-						//request custom schemes (you get all - there is no filter)
-						let customSchemes = await (driveLockApiRequest<CustomPropsResponse>).call(this, 'GET', '/api/administration/entity/customSchema/getCustomSchemas', {});
+						let customSchemes = await (driveLockApiRequest<CustomPropsResponse>).call(
+							this, 'GET', '/api/administration/entity/customSchema/getCustomSchemas', {},
+						);
 
 						if (Array.isArray(customSchemes.data)) {
-							throw new NodeApiError(this.getNode(), { message: "invalid API response. data should be an object" });
+							throw new NodeApiError(this.getNode(), { message: 'invalid API response. data should be an object' });
 						} else if (!customSchemes.data.customProps) {
-							throw new NodeApiError(this.getNode(), { message: "invalid API response. object is missing" });
+							throw new NodeApiError(this.getNode(), { message: 'invalid API response. object is missing' });
 						}
 
-						let checkResult = customPropHelper.checkPropsAndTypes(customSchemes.data?.customProps?.[schemaExtention as string] as ExtensionGroup,
-																			customProperties
-																			);
+						let checkResult = customPropHelper.checkPropsAndTypes(
+							customSchemes.data.customProps[schemaExtention] as ExtensionGroup,
+							customProperties,
+						);
 
-						let allPropertiesFound = !Object.values(checkResult).some(v => v.name !== true);
-						let allDataTypesCorrect = !Object.values(checkResult).some(v => v.datatype !== true);
-						let allNotChanged = !Object.values(checkResult).some(v => v.changed !== false);						
+						let allPropertiesFound = Object.values(checkResult).every((v) => v.name === true);
+						let allDataTypesCorrect = Object.values(checkResult).every((v) => v.datatype === true);
+						let allNotChanged = Object.values(checkResult).every((v) => v.changed === false);
 
-						if (allDataTypesCorrect && (createOrUpdateIfNotExists || !allNotChanged)) {
+						if (allDataTypesCorrect && createOrUpdateIfNotExists) {
 
-							const adjustedProps = customPropHelper.adjustProps(checkResult, schemaExtention as string, customSchemes.data?.customProps as CustomProps, customProperties as IDataObject[]);
-							const endpoint = `/api/administration/entity/customSchema/setCustomSchemas`;
-							const body = {"customProps": adjustedProps};
-							const updateResult = await driveLockApiRequest.call(this, 'POST', endpoint, body, {}, {returnFullResponse: true});
+							const adjustedProps = customPropHelper.adjustProps(
+								checkResult,
+								schemaExtention,
+								customSchemes.data.customProps as CustomProps,
+								customProperties,
+							);
+							const endpoint = '/api/administration/entity/customSchema/setCustomSchemas';
+							const body = { customProps: adjustedProps };
+							const updateResult = await driveLockApiRequest.call(
+								this, 'POST', endpoint, body, {}, { returnFullResponse: true },
+							);
 
-							if (updateResult.statusCode !== 200) {
-								throw new NodeOperationError(this.getNode(), `The update errored for some reasons - returned not with status-code 200. ${updateResult.body}`, { itemIndex: i });
-							} else {
-								customSchemes = await (driveLockApiRequest<CustomPropsResponse>).call(this, 'GET', '/api/administration/entity/customSchema/getCustomSchemas', {});
-								if (Array.isArray(customSchemes.data)) {
-									throw new NodeApiError(this.getNode(), { message: "invalid API response. data should be an object" });
-								} else if (!customSchemes.data.customProps) {
-									throw new NodeApiError(this.getNode(), { message: "invalid API response. object is missing" });
-								}								
-								checkResult = customPropHelper.checkPropsAndTypes(customSchemes.data?.customProps?.[schemaExtention as string] as ExtensionGroup, customProperties);
-								//fixme - rework this
-								allPropertiesFound = !Object.values(checkResult).some(v => v.name !== true);
-								allDataTypesCorrect = !Object.values(checkResult).some(v => v.datatype !== true);
-								allNotChanged = !Object.values(checkResult).some(v => v.changed !== false);
+							const statusCode = (updateResult as Record<string, unknown>).statusCode as number | undefined;
+							if (statusCode !== undefined && statusCode !== 200) {
+								throw new NodeOperationError(
+									this.getNode(),
+									`The update errored - returned status-code ${statusCode}. ${JSON.stringify((updateResult as Record<string, unknown>).body)}`,
+									{ itemIndex: i },
+								);
 							}
 
+							customSchemes = await (driveLockApiRequest<CustomPropsResponse>).call(
+								this, 'GET', '/api/administration/entity/customSchema/getCustomSchemas', {},
+							);
+							if (Array.isArray(customSchemes.data)) {
+								throw new NodeApiError(this.getNode(), { message: 'invalid API response. data should be an object' });
+							} else if (!customSchemes.data.customProps) {
+								throw new NodeApiError(this.getNode(), { message: 'invalid API response. object is missing' });
+							}
+							checkResult = customPropHelper.checkPropsAndTypes(
+								customSchemes.data.customProps[schemaExtention] as ExtensionGroup,
+								customProperties,
+							);
+							allPropertiesFound = Object.values(checkResult).every((v) => v.name === true);
+							allDataTypesCorrect = Object.values(checkResult).every((v) => v.datatype === true);
+							allNotChanged = Object.values(checkResult).every((v) => v.changed === false);
 						}
 
-						const success : boolean = (allPropertiesFound && allDataTypesCorrect);
+						const success: boolean = allPropertiesFound && allDataTypesCorrect;
 						const responseData: IDataObject = { allPropertiesFound, allDataTypesCorrect, allNotChanged, details: checkResult };
 
 						if (success) {
@@ -432,116 +549,137 @@ export class Drivelock implements INodeType {
 
 							const outputData = JSON.stringify(responseData);
 
-							if (!createOrUpdateIfNotExists){
-								const errorMsg = `Please configure the Custom properties proper here or in DOC. Tick the 'Create properties ...' Button to create missing entires here (or in DOC).\n\nCheck says ${outputData}`;
-								throw new NodeOperationError(this.getNode(), errorMsg, { itemIndex: i });
+							if (!createOrUpdateIfNotExists) {
+								throw new NodeOperationError(
+									this.getNode(),
+									`Please configure the Custom properties proper here or in DOC. Tick the 'Create properties ...' Button to create missing entries here (or in DOC).\n\nCheck says ${outputData}`,
+									{ itemIndex: i },
+								);
 							} else if (!allPropertiesFound) {
-								throw new NodeOperationError(this.getNode(), `While trying to create Some custom properties are missing or have incorrect data types. Details: ${outputData}`, { itemIndex: i });
-							} else if (!allDataTypesCorrect){
-								throw new NodeOperationError(this.getNode(), `Some custom properties are missing or have incorrect data types. Details: ${outputData}`, { itemIndex: i });
+								throw new NodeOperationError(
+									this.getNode(),
+									`While trying to create: Some custom properties are missing or have incorrect data types. Details: ${outputData}`,
+									{ itemIndex: i },
+								);
+							} else if (!allDataTypesCorrect) {
+								throw new NodeOperationError(
+									this.getNode(),
+									`Some custom properties have incorrect data types. Details: ${outputData}`,
+									{ itemIndex: i },
+								);
 							}
-
 						}
 
 					} else if (operation === 'update') {
 
-						const customPropertyId = (this.getNodeParameter('customPropertyId', i) as IDataObject);
+						const customPropertyId = this.getNodeParameter('customPropertyId', i) as IDataObject;
 						const updateProperties = (this.getNodeParameter('updateProperties', i) as IDataObject).customPropertiesValues as IDataObject[];
 						const payload = customPropHelper.createSetPayload(customPropertyId.value as string, updateProperties);
 
 						const url = `/api/administration/entity/customSchema/setCustomData/${schemaExtention}`;
 						await driveLockApiRequest.call(this, 'POST', url, payload);
 
-						returnData.push({success:true, payload:payload});
-
+						returnData.push({ success: true, payload });
 					}
 
 				} else if (resource === 'binaries') {
 
 					if (operation === 'getAll') {
 
-						const endpoint = `/api/administration/entity/AcBinaries`
+						const endpoint = '/api/administration/entity/AcBinaries';
 						const returnAll = this.getNodeParameter('returnAll', i) as boolean;
 						const getFullObject = this.getNodeParameter('getFullObject', i) as boolean;
 
-						let select_fields;
+						let selectFields: string | undefined;
 
 						if (!getFullObject) {
 							const propertiesToInclude = this.getNodeParameter('properties', i);
 							const extentionPropertiesToInclude = this.getNodeParameter('extentionproperties', i);
 
 							if (Array.isArray(propertiesToInclude)) {
-								select_fields = propertiesToInclude.map(key => `${key}`).join(',');
+								selectFields = propertiesToInclude.join(',');
 							}
 							if (Array.isArray(extentionPropertiesToInclude)) {
-								const select_extentionfields = extentionPropertiesToInclude.map(key => `extensions.${key}`).join(',');
-								if (select_extentionfields)
-									select_fields += `,${select_extentionfields}`;
+								const extFields = extentionPropertiesToInclude
+									.map((key) => `extensions.${key}`)
+									.join(',');
+								if (extFields) {
+									selectFields = selectFields ? `${selectFields},${extFields}` : extFields;
+								}
 							}
 						}
 
 						const qs: DriveLockQuery = {
 							sortBy: '-extensions.VirusTotalLastFetch',
 							select: null,
-							query: null,
 							getTotalCount: true,
 							getFullObjects: getFullObject,
 							getAsFlattenedList: false,
 						};
 
-						if (!getFullObject)
-							qs.select = `id,${select_fields},`;
+						if (!getFullObject && selectFields) {
+							qs.select = `id,${selectFields}`;
+						}
 
+						const pageSize = 500;
+						qs.take = pageSize;
 
-						qs.take = 500; //this is my internal limit of this custom-node FIXME make this global const
-						
-						let limit: number = -1;
-						if (!returnAll) { //if not every should be returned - in case the limt number (of returned items) is less then take ... lower take to this value
+						const filterMode = this.getNodeParameter('filterMode', i, 'builder') as 'builder' | 'raw';
+						const filterRaw = this.getNodeParameter('filterRaw', i, '') as string;
+						const filterCombinator = this.getNodeParameter('filterCombinator', i, 'and') as 'and' | 'or';
+						const filterGroupsParam = this.getNodeParameter('filterGroups', i, { groups: [] }) as FilterGroupsParam;
+						const builtQuery = buildFilterQuery(filterMode, filterRaw, filterCombinator, filterGroupsParam);
+						if (builtQuery) qs.query = builtQuery;
 
+						let limit = -1;
+						if (!returnAll) {
 							limit = this.getNodeParameter('limit', i) as number;
-							if (qs.take>limit)
-								qs.take = limit;
-
+							if (qs.take > limit) qs.take = limit;
 						}
 
-						const responseData  = await (driveLockApiRequest<DriveLockItem[]>).call(this, 'GET', endpoint, {}, qs); //first of all - fire request
-						const total = responseData.total ?? 0; //now we got the total counter - this is always set by the API
-	
-						if (
-							(returnAll && qs.take < total) ||
-							(!returnAll && qs.take < limit)
-						) {
+						const responseData = await (driveLockApiRequest<DriveLockItem[]>).call(
+							this, 'GET', endpoint, {}, qs,
+						);
+						const total = responseData.total ?? 0;
 
-							while (responseData.data?.length < total) {
+						if (Array.isArray(responseData.data)) {
+							const targetCount = returnAll ? total : Math.min(limit, total);
 
-								qs.skip = responseData.data?.length;
-								
-								if (!returnAll){
-									const nextAll: number = responseData.data?.length + qs.take;
-									if (nextAll>limit)
-										qs.take = nextAll - (nextAll-limit);
+							if (responseData.data.length < targetCount) {
+								while (responseData.data.length < targetCount) {
+									qs.skip = responseData.data.length;
+
+									if (!returnAll) {
+										const remaining = limit - responseData.data.length;
+										qs.take = Math.min(pageSize, remaining);
+									}
+
+									try {
+										const additionalData = await (driveLockApiRequest<DriveLockItem[]>).call(
+											this, 'GET', endpoint, {}, qs,
+										);
+										if (!Array.isArray(additionalData.data)) {
+											(responseData as Record<string, unknown>).paginationWarning =
+												'Unexpected API response during pagination: data is not an array. Returning partial results.';
+											break;
+										}
+										responseData.data.push(...(additionalData.data as DriveLockItem[]));
+
+										if (!returnAll && responseData.data.length >= limit) break;
+									} catch (error) {
+										(responseData as Record<string, unknown>).paginationWarning =
+											`Pagination stopped after fetching ${responseData.data.length} of ${targetCount} items: ${(error as Error).message}`;
+										break;
+									}
 								}
-
-								const additionalData = await (driveLockApiRequest<DriveLockItem[]>).call(this, 'GET', endpoint, {}, qs);							
-								if (!Array.isArray(additionalData.data)) {
-									throw new NodeOperationError(this.getNode(), `Some custom properties are missing or have incorrect data types. Details`, { itemIndex: i });
-								}
-								responseData.data.push(...additionalData.data as []);
-
-								if (!returnAll && responseData.data?.length >= limit)
-									break;
-
 							}
-
 						}
 
-						responseData.n8nProcessedTotal = responseData.data?.length;
+						responseData.n8nProcessedTotal = Array.isArray(responseData.data)
+							? responseData.data.length
+							: 0;
 
-						if (responseData) {
-
-							returnData.push(responseData as IDataObject);
-
-						}
+						returnData.push(responseData as IDataObject);
 					}
 
 				} else if (resource === 'computer') {
@@ -550,343 +688,237 @@ export class Drivelock implements INodeType {
 					// =====================================
 					if (operation === 'delete') {
 						const computerIdsStr = this.getNodeParameter('computerIds', i) as string;
-						const computerIds = computerIdsStr.split(',').map(id => id.trim());
+						const computerIds = validateCommaSeparatedIds(computerIdsStr, this.getNode(), i, 'computerIds');
 						const deleteRecoveryData = this.getNodeParameter('deleteRecoveryData', i) as boolean;
 						const deleteEvents = this.getNodeParameter('deleteEvents', i) as boolean;
 						const deleteGroupDefinitions = this.getNodeParameter('deleteGroupDefinitions', i) as boolean;
 
-						const body = {
+						const body: IDataObject = {
 							computerIds,
 							deleteRecoveryData,
 							deleteEvents,
 							deleteGroupDefinitions,
 						};
 
-						const response = await this.helpers.httpRequestWithAuthentication.call(
-							this,
-							credentialType,
-							{
-								method: 'POST',
-								url: `${baseUrl}/api/administration/computer/delete`,
-								body,
-								json: true,
-							},
+						const response = await driveLockApiRequest.call(
+							this, 'POST', '/api/administration/computer/delete', body,
 						);
-
 						returnData.push(extractResponseData(response));
+
 					} else if (operation === 'executeActions') {
 						const computerIdsStr = this.getNodeParameter('computerIds', i) as string;
-						const computerIds = computerIdsStr.split(',').map(id => id.trim());
+						const computerIds = validateCommaSeparatedIds(computerIdsStr, this.getNode(), i, 'computerIds');
 						const actionsStr = this.getNodeParameter('actions', i) as string;
 						const notifyAgent = this.getNodeParameter('notifyAgent', i) as boolean;
 
-						let actions;
-						try {
-							actions = JSON.parse(actionsStr);
-						} catch {
-							throw new NodeOperationError(this.getNode(), 'Invalid JSON in actions field');
-						}
+						const actions = parseJsonParameter(actionsStr, this.getNode(), i, 'actions') as IDataObject;
 
-						const body = {
-							computerIds,
-							actions,
-							notifyAgent,
-						};
-
-						const response = await this.helpers.httpRequestWithAuthentication.call(
-							this,
-							credentialType,
-							{
-								method: 'POST',
-								url: `${baseUrl}/api/administration/computer/actions`,
-								body,
-								json: true,
-							},
+						const body: IDataObject = { computerIds, actions, notifyAgent };
+						const response = await driveLockApiRequest.call(
+							this, 'POST', '/api/administration/computer/actions', body,
 						);
-
 						returnData.push(extractResponseData(response));
 
 					} else if (operation === 'onlineUnlock') {
 						const computerId = this.getNodeParameter('computerId', i) as string;
 						const unlockDataStr = this.getNodeParameter('unlockData', i) as string;
 
-						let data;
-						try {
-							data = JSON.parse(unlockDataStr);
-						} catch {
-							throw new NodeOperationError(this.getNode(), 'Invalid JSON in unlock data field');
-						}
+						const data = parseJsonParameter(unlockDataStr, this.getNode(), i, 'unlockData') as IDataObject;
 
-						const body = {
-							computerId,
-							data,
-						};
-
-						const response = await this.helpers.httpRequestWithAuthentication.call(
-							this,
-							credentialType,
-							{
-								method: 'POST',
-								url: `${baseUrl}/api/administration/computer/online/unlock`,
-								body,
-								json: true,
-							},
+						const body: IDataObject = { computerId, data };
+						const response = await driveLockApiRequest.call(
+							this, 'POST', '/api/administration/computer/online/unlock', body,
 						);
-
 						returnData.push(extractResponseData(response));
 
 					} else if (operation === 'stopOnlineUnlock') {
 						const computerId = this.getNodeParameter('computerId', i) as string;
 
-						const body = {
-							computerId,
-						};
-
-						const response = await this.helpers.httpRequestWithAuthentication.call(
-							this,
-							credentialType,
-							{
-								method: 'POST',
-								url: `${baseUrl}/api/administration/computer/online/stopUnlock`,
-								body,
-								json: true,
-							},
+						const body: IDataObject = { computerId };
+						const response = await driveLockApiRequest.call(
+							this, 'POST', '/api/administration/computer/online/stopUnlock', body,
 						);
-
 						returnData.push(extractResponseData(response));
-						
+
 					} else if (operation === 'markForRejoin') {
 						const computerIdsStr = this.getNodeParameter('computerIds', i) as string;
-						const computerIds = computerIdsStr.split(',').map(id => id.trim());
+						const computerIds = validateCommaSeparatedIds(computerIdsStr, this.getNode(), i, 'computerIds');
 						const allowToRejoin = this.getNodeParameter('allowToRejoin', i) as boolean;
 
-						const body = {
-							computerIds,
-							allowToRejoin,
-						};
-
-						const response = await this.helpers.httpRequestWithAuthentication.call(
-							this,
-							credentialType,
-							{
-								method: 'POST',
-								url: `${baseUrl}/api/administration/computer/markAgentForRejoin`,
-								body,
-								json: true,
-							},
+						const body: IDataObject = { computerIds, allowToRejoin };
+						const response = await driveLockApiRequest.call(
+							this, 'POST', '/api/administration/computer/markAgentForRejoin', body,
 						);
+						returnData.push(extractResponseData(response));
 
+					} else if (operation === 'clearAgentIdToken') {
+						const computerId = this.getNodeParameter('computerId', i) as string;
+
+						const body: IDataObject = { computerId };
+						const response = await driveLockApiRequest.call(
+							this, 'POST', '/api/administration/computer/clearAgentIdToken', body,
+						);
+						returnData.push(extractResponseData(response));
+
+					} else if (operation === 'setImageFlag') {
+						const computerId = this.getNodeParameter('computerId', i) as string;
+						const imageFlag = this.getNodeParameter('imageFlag', i);
+
+						const body: IDataObject = { computerId, imageFlag };
+						const response = await driveLockApiRequest.call(
+							this, 'POST', '/api/administration/computer/setImageFlag', body,
+						);
+						returnData.push(extractResponseData(response));
+
+					} else if (operation === 'stopOnlineUnlocks') {
+						const computerIdsStr = this.getNodeParameter('computerIds', i) as string;
+						// Parse without strict validation — API handles its own limits per user decision
+						// Partial failures treated as success with failure details in output
+						const computerIds = computerIdsStr.split(',').map((id) => id.trim()).filter(Boolean);
+
+						const body: IDataObject = { computerIds };
+						const response = await driveLockApiRequest.call(
+							this, 'POST', '/api/administration/computer/stopOnlineUnlocks', body,
+						);
+						returnData.push(extractResponseData(response));
+
+					} else if (operation === 'bitlockerRecovery') {
+						const recoveryId = this.getNodeParameter('recoveryId', i) as string;
+
+						const body: IDataObject = { recoveryId };
+						const response = await driveLockApiRequest.call(
+							this, 'POST', '/api/administration/computer/recovery/bitlockerRecovery', body,
+						);
+						returnData.push(extractResponseData(response));
+
+					} else if (operation === 'bitlocker2goRecovery') {
+						const recoveryId = this.getNodeParameter('recoveryId', i) as string;
+
+						const body: IDataObject = { recoveryId };
+						const response = await driveLockApiRequest.call(
+							this, 'POST', '/api/administration/computer/recovery/bitlocker2goRecovery', body,
+						);
 						returnData.push(extractResponseData(response));
 					}
-				} else if (resource === 'entity') {
 
+				} else if (resource === 'entity') {
 					// =====================================
 					// Entity Operations
 					// =====================================
-
 					const entityName = this.getNodeParameter('entityName', i) as string;
 
-					//1st Version of AcBinaries
-					// if (entityName === 'AcBinaries' && operation === 'getList') {
+					if (operation === 'getList') {
+						const additionalFields = this.getNodeParameter('additionalFields', i) as IDataObject;
 
-					// 	const endpoint = `/api/administration/entity/AcBinaries`
-					// 	const returnAll = this.getNodeParameter('returnAll', i) as boolean;
-					// 	const getFullObject = this.getNodeParameter('getFullObject', i) as boolean;
+						const qs: IDataObject = {};
+						if (additionalFields.select) qs.select = additionalFields.select;
+						if (additionalFields.sortBy) qs.sortBy = additionalFields.sortBy;
+						if (additionalFields.groupBy) qs.groupBy = additionalFields.groupBy;
+						if (additionalFields.skip !== undefined) qs.skip = additionalFields.skip;
+						if (additionalFields.take !== undefined) qs.take = additionalFields.take;
+						if (additionalFields.getTotalCount !== undefined)
+							qs.getTotalCount = additionalFields.getTotalCount;
+						if (additionalFields.includeLinkedObjects !== undefined)
+							qs.includeLinkedObjects = additionalFields.includeLinkedObjects;
+						if (additionalFields.getFullObjects !== undefined)
+							qs.getFullObjects = additionalFields.getFullObjects;
+						if (additionalFields.getAsFlattenedList !== undefined)
+							qs.getAsFlattenedList = additionalFields.getAsFlattenedList;
 
-					// 	let select_fields;
+						const filterMode = this.getNodeParameter('filterMode', i, 'builder') as 'builder' | 'raw';
+						const filterRaw = this.getNodeParameter('filterRaw', i, '') as string;
+						const filterCombinator = this.getNodeParameter('filterCombinator', i, 'and') as 'and' | 'or';
+						const filterGroupsParam = this.getNodeParameter('filterGroups', i, { groups: [] }) as FilterGroupsParam;
+						const builtQuery = buildFilterQuery(filterMode, filterRaw, filterCombinator, filterGroupsParam);
+						if (builtQuery) qs.query = builtQuery;
 
-					// 	if (!getFullObject) {
-					// 		const propertiesToInclude = this.getNodeParameter('properties', i);
-					// 		const extentionPropertiesToInclude = this.getNodeParameter('extentionproperties', i);
+						const response = await driveLockApiRequest.call(
+							this, 'GET', `/api/administration/entity/${entityName}`, {}, qs,
+						);
+						returnData.push(extractResponseData(response));
 
-					// 		if (Array.isArray(propertiesToInclude)) {
-					// 			select_fields = propertiesToInclude.map(key => `${key}`).join(',');
-					// 		}
-					// 		if (Array.isArray(extentionPropertiesToInclude)) {
-					// 			const select_extentionfields = extentionPropertiesToInclude.map(key => `extensions.${key}`).join(',');
-					// 			if (select_extentionfields)
-					// 				select_fields += `,${select_extentionfields}`;
-					// 		}
-					// 	}
+					} else if (operation === 'getCount') {
+						const additionalFields = this.getNodeParameter('additionalFields', i) as IDataObject;
 
-					// 	const qs: DriveLockQuery = {
-					// 		sortBy: '-extensions.VirusTotalLastFetch',
-					// 		select: null,
-					// 		query: null,
-					// 		getTotalCount: true,
-					// 		getFullObjects: getFullObject,
-					// 		getAsFlattenedList: false,
-					// 	};
+						const qs: IDataObject = {};
+						if (additionalFields.groupBy) qs.groupBy = additionalFields.groupBy;
 
-					// 	if (!getFullObject)
-					// 		qs.select = `id,${select_fields},`;
+						const filterMode = this.getNodeParameter('filterMode', i, 'builder') as 'builder' | 'raw';
+						const filterRaw = this.getNodeParameter('filterRaw', i, '') as string;
+						const filterCombinator = this.getNodeParameter('filterCombinator', i, 'and') as 'and' | 'or';
+						const filterGroupsParam = this.getNodeParameter('filterGroups', i, { groups: [] }) as FilterGroupsParam;
+						const builtQuery = buildFilterQuery(filterMode, filterRaw, filterCombinator, filterGroupsParam);
+						if (builtQuery) qs.query = builtQuery;
 
+						const response = await driveLockApiRequest.call(
+							this, 'GET', `/api/administration/entity/${entityName}/count`, {}, qs,
+						);
+						returnData.push(extractResponseData(response));
 
-					// 	qs.take = 500; //this is my internal limit of this custom-node FIXME make this global const
-						
-					// 	let limit: number = -1;
-					// 	if (!returnAll) { //if not every should be returned - in case the limt number (of returned items) is less then take ... lower take to this value
+					} else if (operation === 'getById') {
+						const entityId = this.getNodeParameter('entityId', i) as string;
+						const includeLinkedObjects = this.getNodeParameter('includeLinkedObjects', i) as boolean;
 
-					// 		limit = this.getNodeParameter('limit', i) as number;
-					// 		if (qs.take>limit)
-					// 			qs.take = limit;
+						const qs: IDataObject = { includeLinkedObjects };
 
-					// 	}
+						const response = await driveLockApiRequest.call(
+							this, 'GET', `/api/administration/entity/${entityName}/${entityId}`, {}, qs,
+						);
+						returnData.push(extractResponseData(response));
 
-					// 	const responseData  = await (driveLockApiRequest<DriveLockItem[]>).call(this, 'GET', endpoint, {}, qs); //first of all - fire request
-					// 	const total = responseData.total ?? 0; //now we got the total counter - this is always set by the API
-	
-					// 	if (
-					// 		(returnAll && qs.take < total) ||
-					// 		(!returnAll && qs.take < limit)
-					// 	) {
+					} else if (operation === 'export') {
+						const exportFormat = this.getNodeParameter('exportFormat', i) as string;
+						const additionalFields = this.getNodeParameter('additionalFields', i) as IDataObject;
+						const exportOptions = this.getNodeParameter('exportOptions', i) as IDataObject;
 
-					// 		while (responseData.data?.length < total) {
+						const qs: IDataObject = { exportFormat };
 
-					// 			qs.skip = responseData.data?.length;
-								
-					// 			if (!returnAll){
-					// 				const nextAll: number = responseData.data?.length + qs.take;
-					// 				if (nextAll>limit)
-					// 					qs.take = nextAll - (nextAll-limit);
-					// 			}
+						if (additionalFields.select) qs.select = additionalFields.select;
+						if (additionalFields.sortBy) qs.sortBy = additionalFields.sortBy;
+						if (additionalFields.groupBy) qs.groupBy = additionalFields.groupBy;
+						if (additionalFields.skip !== undefined) qs.skip = additionalFields.skip;
+						if (additionalFields.take !== undefined) qs.take = additionalFields.take;
+						if (additionalFields.includeLinkedObjects !== undefined)
+							qs.includeLinkedObjects = additionalFields.includeLinkedObjects;
+						if (additionalFields.getFullObjects !== undefined)
+							qs.getFullObjects = additionalFields.getFullObjects;
+						if (additionalFields.getAsFlattenedList !== undefined)
+							qs.getAsFlattenedList = additionalFields.getAsFlattenedList;
+						if (additionalFields.maskUserProperties !== undefined)
+							qs.maskUserProperties = additionalFields.maskUserProperties;
+						if (additionalFields.maskComputerProperties !== undefined)
+							qs.maskComputerProperties = additionalFields.maskComputerProperties;
 
-					// 			const additionalData = await (driveLockApiRequest<DriveLockItem[]>).call(this, 'GET', endpoint, {}, qs);							
-					// 			if (!Array.isArray(additionalData.data)) {
-					// 				throw new NodeOperationError(this.getNode(), `Some custom properties are missing or have incorrect data types. Details`, { itemIndex: i });
-					// 			}
-					// 			responseData.data.push(...additionalData.data as []);
+						const filterMode = this.getNodeParameter('filterMode', i, 'builder') as 'builder' | 'raw';
+						const filterRaw = this.getNodeParameter('filterRaw', i, '') as string;
+						const filterCombinator = this.getNodeParameter('filterCombinator', i, 'and') as 'and' | 'or';
+						const filterGroupsParam = this.getNodeParameter('filterGroups', i, { groups: [] }) as FilterGroupsParam;
+						const builtQuery = buildFilterQuery(filterMode, filterRaw, filterCombinator, filterGroupsParam);
+						if (builtQuery) qs.query = builtQuery;
 
-					// 			if (!returnAll && responseData.data?.length >= limit)
-					// 				break;
+						if (exportOptions.readability !== undefined)
+							qs.readability = exportOptions.readability;
+						if (exportOptions.separator) qs.separator = exportOptions.separator;
+						if (exportOptions.language) qs.language = exportOptions.language;
 
-					// 		}
+						// Export may return non-JSON (e.g. CSV), disable default JSON parsing
+						const response = await driveLockApiRequest.call(
+							this, 'GET', `/api/administration/entity/${entityName}/export`,
+							{}, qs, { json: false },
+						);
+						returnData.push(extractResponseData(response));
 
-					// 	}
+					} else if (operation === 'getPermissions') {
+						const entityId = this.getNodeParameter('entityId', i) as string;
 
-					// 	responseData.n8nProcessedTotal = responseData.data?.length;
-						
-					// 	returnData.push(responseData);
-
-					// } else {
-						
-						if (operation === 'getList') {
-							const additionalFields = this.getNodeParameter('additionalFields', i) as IDataObject;
-
-							const qs: IDataObject = {};
-							if (additionalFields.select) qs.select = additionalFields.select;
-							if (additionalFields.query) qs.query = additionalFields.query;
-							if (additionalFields.sortBy) qs.sortBy = additionalFields.sortBy;
-							if (additionalFields.groupBy) qs.groupBy = additionalFields.groupBy;
-							if (additionalFields.skip !== undefined) qs.skip = additionalFields.skip;
-							if (additionalFields.take !== undefined) qs.take = additionalFields.take;
-							if (additionalFields.getTotalCount !== undefined)
-								qs.getTotalCount = additionalFields.getTotalCount;
-							if (additionalFields.includeLinkedObjects !== undefined)
-								qs.includeLinkedObjects = additionalFields.includeLinkedObjects;
-							if (additionalFields.getFullObjects !== undefined)
-								qs.getFullObjects = additionalFields.getFullObjects;
-
-							const response = await this.helpers.httpRequestWithAuthentication.call(
-								this,
-								credentialType,
-								{
-									method: 'GET',
-									url: `${baseUrl}/api/administration/entity/${entityName}`,
-									qs,
-									json: true,
-								},
-							);
-
-							returnData.push(extractResponseData(response));
-						} else if (operation === 'getCount') {
-							const additionalFields = this.getNodeParameter('additionalFields', i) as IDataObject;
-
-							const qs: IDataObject = {};
-							if (additionalFields.query) qs.query = additionalFields.query;
-							if (additionalFields.groupBy) qs.groupBy = additionalFields.groupBy;
-
-							const response = await this.helpers.httpRequestWithAuthentication.call(
-								this,
-								credentialType,
-								{
-									method: 'GET',
-									url: `${baseUrl}/api/administration/entity/${entityName}/count`,
-									qs,
-									json: true,
-								},
-							);
-
-							returnData.push(extractResponseData(response));
-
-						} else if (operation === 'getById') {
-
-							const entityId = this.getNodeParameter('entityId', i) as string;
-							const includeLinkedObjects = this.getNodeParameter(
-								'includeLinkedObjects',
-								i,
-							) as boolean;
-
-							const qs: IDataObject = {
-								includeLinkedObjects,
-							};
-
-							const response = await this.helpers.httpRequestWithAuthentication.call(
-								this,
-								credentialType,
-								{
-									method: 'GET',
-									url: `${baseUrl}/api/administration/entity/${entityName}/${entityId}`,
-									qs,
-									json: true,
-								},
-							);
-
-							returnData.push(extractResponseData(response));
-
-						} else if (operation === 'export') {
-							
-							const exportFormat = this.getNodeParameter('exportFormat', i) as string;
-							const additionalFields = this.getNodeParameter('additionalFields', i) as IDataObject;
-							const exportOptions = this.getNodeParameter('exportOptions', i) as IDataObject;
-
-							const qs: IDataObject = {
-								exportFormat,
-							};
-
-							if (additionalFields.select) qs.select = additionalFields.select;
-							if (additionalFields.query) qs.query = additionalFields.query;
-							if (additionalFields.sortBy) qs.sortBy = additionalFields.sortBy;
-							if (additionalFields.groupBy) qs.groupBy = additionalFields.groupBy;
-							if (additionalFields.skip !== undefined) qs.skip = additionalFields.skip;
-							if (additionalFields.take !== undefined) qs.take = additionalFields.take;
-							if (additionalFields.includeLinkedObjects !== undefined)
-								qs.includeLinkedObjects = additionalFields.includeLinkedObjects;
-							if (additionalFields.getFullObjects !== undefined)
-								qs.getFullObjects = additionalFields.getFullObjects;
-
-							if (exportOptions.readability !== undefined)
-								qs.readability = exportOptions.readability;
-							if (exportOptions.separator) qs.separator = exportOptions.separator;
-							if (exportOptions.language) qs.language = exportOptions.language;
-
-							const response = await this.helpers.httpRequestWithAuthentication.call(
-								this,
-								credentialType,
-								{
-									method: 'GET',
-									url: `${baseUrl}/api/administration/entity/${entityName}/export`,
-									qs,
-								},
-							);
-
-							returnData.push(extractResponseData(response));
-						}
-
-					// }
+						const body: IDataObject = { entityName, entityId };
+						const permResponse = await driveLockApiRequest.call(
+							this, 'POST', '/api/administration/entity/getEntityPermissions', body,
+						);
+						returnData.push(extractResponseData(permResponse));
+					}
 
 				} else if (resource === 'group') {
-
 					// =====================================
 					// Group Operations
 					// =====================================
@@ -894,48 +926,21 @@ export class Drivelock implements INodeType {
 						const groupId = this.getNodeParameter('groupId', i) as string;
 						const membershipsStr = this.getNodeParameter('memberships', i) as string;
 
-						let memberships;
-						try {
-							memberships = JSON.parse(membershipsStr);
-						} catch {
-							throw new NodeOperationError(
-								this.getNode(),
-								'Invalid JSON in memberships field',
-							);
-						}
+						const memberships = parseJsonParameter(membershipsStr, this.getNode(), i, 'memberships') as IDataObject;
 
-						const body = {
-							groupId,
-							memberships,
-						};
-
-						const response = await this.helpers.httpRequestWithAuthentication.call(
-							this,
-							credentialType,
-							{
-								method: 'POST',
-								url: `${baseUrl}/api/administration/group/definedGroupMemberships/computers`,
-								body,
-								json: true,
-							},
+						const body: IDataObject = { groupId, memberships };
+						const response = await driveLockApiRequest.call(
+							this, 'POST', '/api/administration/group/definedGroupMemberships/computers', body,
 						);
-
 						returnData.push(extractResponseData(response));
+
 					} else if (operation === 'removeGroupMemberships') {
 						const membershipIdsStr = this.getNodeParameter('membershipIds', i) as string;
-						const membershipIds = membershipIdsStr.split(',').map((id) => id.trim());
+						const membershipIds = validateCommaSeparatedIds(membershipIdsStr, this.getNode(), i, 'membershipIds');
 
-						const response = await this.helpers.httpRequestWithAuthentication.call(
-							this,
-							credentialType,
-							{
-								method: 'DELETE',
-								url: `${baseUrl}/api/administration/group/definedGroupMemberships`,
-								body: membershipIds,
-								json: true,
-							},
+						const response = await driveLockApiRequest.call(
+							this, 'DELETE', '/api/administration/group/definedGroupMemberships', membershipIds,
 						);
-
 						returnData.push(extractResponseData(response));
 					}
 
@@ -943,508 +948,42 @@ export class Drivelock implements INodeType {
 					// =====================================
 					// Application Rules Operations
 					// =====================================
-					const configId = this.getNodeParameter('configId', i) as string;
-					const configVersion = this.getNodeParameter('configVersion', i) as number;
-
-					if (operation === 'getRules') {
-						const qs: IDataObject = {
-							configVersion: configVersion || undefined,
-						};
-
-						const response = await this.helpers.httpRequestWithAuthentication.call(
-							this,
-							credentialType,
-							{
-								method: 'GET',
-								url: `${baseUrl}/api/administration/applicationControl/rules/${configId}`,
-								qs,
-								json: true,
-							},
-						);
-
-						returnData.push(extractResponseData(response));
-					} else if (operation === 'createRules') {
-						const rulesStr = this.getNodeParameter('rules', i) as string;
-
-						let rules;
-						try {
-							rules = JSON.parse(rulesStr);
-						} catch {
-							throw new NodeOperationError(this.getNode(), 'Invalid JSON in rules field');
-						}
-
-						const body = {
-							configId,
-							configVersion: configVersion || undefined,
-							rules,
-						};
-
-						const response = await this.helpers.httpRequestWithAuthentication.call(
-							this,
-							credentialType,
-							{
-								method: 'POST',
-								url: `${baseUrl}/api/administration/applicationControl/rules`,
-								body,
-								json: true,
-							},
-						);
-
-						returnData.push(extractResponseData(response));
-					} else if (operation === 'updateRules') {
-						const rulesStr = this.getNodeParameter('rules', i) as string;
-
-						let rules;
-						try {
-							rules = JSON.parse(rulesStr);
-						} catch {
-							throw new NodeOperationError(this.getNode(), 'Invalid JSON in rules field');
-						}
-
-						const body = {
-							configId,
-							configVersion: configVersion || undefined,
-							rules,
-						};
-
-						const response = await this.helpers.httpRequestWithAuthentication.call(
-							this,
-							credentialType,
-							{
-								method: 'PATCH',
-								url: `${baseUrl}/api/administration/applicationControl/rules`,
-								body,
-								json: true,
-							},
-						);
-
-						returnData.push(extractResponseData(response));
-					} else if (operation === 'deleteRules') {
-						const ruleIdsStr = this.getNodeParameter('ruleIds', i) as string;
-						const ruleIds = ruleIdsStr.split(',').map((id) => id.trim());
-
-						const body = {
-							configId,
-							configVersion: configVersion || undefined,
-							ruleIds,
-						};
-
-						const response = await this.helpers.httpRequestWithAuthentication.call(
-							this,
-							credentialType,
-							{
-								method: 'DELETE',
-								url: `${baseUrl}/api/administration/applicationControl/rules`,
-								body,
-								json: true,
-							},
-						);
-
-						returnData.push(extractResponseData(response));
-
-					} else if (operation === 'getBehaviorRules') {
-						const qs: IDataObject = {
-							configVersion: configVersion || undefined,
-						};
-
-						const response = await this.helpers.httpRequestWithAuthentication.call(
-							this,
-							credentialType,
-							{
-								method: 'GET',
-								url: `${baseUrl}/api/administration/applicationControl/behaviorRules/${configId}`,
-								qs,
-								json: true,
-							},
-						);
-
-						returnData.push(extractResponseData(response));
-
-					} else if (operation === 'createBehaviorRules') {
-						const rulesStr = this.getNodeParameter('rules', i) as string;
-
-						let rules;
-						try {
-							rules = JSON.parse(rulesStr);
-						} catch {
-							throw new NodeOperationError(this.getNode(), 'Invalid JSON in rules field');
-						}
-
-						const body = {
-							configId,
-							configVersion: configVersion || undefined,
-							rules,
-						};
-
-						const response = await this.helpers.httpRequestWithAuthentication.call(
-							this,
-							credentialType,
-							{
-								method: 'POST',
-								url: `${baseUrl}/api/administration/applicationControl/behaviorRules`,
-								body,
-								json: true,
-							},
-						);
-
-						returnData.push(extractResponseData(response));
-					} else if (operation === 'updateBehaviorRules') {
-						const rulesStr = this.getNodeParameter('rules', i) as string;
-
-						let rules;
-						try {
-							rules = JSON.parse(rulesStr);
-						} catch {
-							throw new NodeOperationError(this.getNode(), 'Invalid JSON in rules field');
-						}
-
-						const body = {
-							configId,
-							configVersion: configVersion || undefined,
-							rules,
-						};
-
-						const response = await this.helpers.httpRequestWithAuthentication.call(
-							this,
-							credentialType,
-							{
-								method: 'PATCH',
-								url: `${baseUrl}/api/administration/applicationControl/behaviorRules`,
-								body,
-								json: true,
-							},
-						);
-
-						returnData.push(extractResponseData(response));
-					} else if (operation === 'deleteBehaviorRules') {
-						const ruleIdsStr = this.getNodeParameter('ruleIds', i) as string;
-						const ruleIds = ruleIdsStr.split(',').map((id) => id.trim());
-
-						const body = {
-							configId,
-							configVersion: configVersion || undefined,
-							ruleIds,
-						};
-
-						const response = await this.helpers.httpRequestWithAuthentication.call(
-							this,
-							credentialType,
-							{
-								method: 'DELETE',
-								url: `${baseUrl}/api/administration/applicationControl/behaviorRules`,
-								body,
-								json: true,
-							},
-						);
-
-						returnData.push(extractResponseData(response));
-					}
-
-
-
+					returnData.push(
+						await executeControlRuleOperation(this, 'applicationControl', 'rules', operation, i),
+					);
 
 				} else if (resource === 'deviceRules') {
-					// ===================================
+					// =====================================
 					// Device Rules Operations
 					// =====================================
-					const configId = this.getNodeParameter('configId', i) as string;
-					const configVersion = this.getNodeParameter('configVersion', i) as number;
-
-					if (operation === 'getRules') {
-						const qs: IDataObject = {
-							configVersion: configVersion || undefined,
-						};
-
-						const response = await this.helpers.httpRequestWithAuthentication.call(
-							this,
-							credentialType,
-							{
-								method: 'GET',
-								url: `${baseUrl}/api/administration/deviceControl/rules/${configId}`,
-								qs,
-								json: true,
-							},
+					if (operation === 'getRule') {
+						const ruleId = this.getNodeParameter('ruleId', i) as string;
+						const response = await driveLockApiRequest.call(
+							this, 'GET', `/api/administration/deviceControl/rules/${ruleId}`,
 						);
-
 						returnData.push(extractResponseData(response));
-					} else if (operation === 'getCollections') {
-						const qs: IDataObject = {
-							configVersion: configVersion || undefined,
-						};
-
-						const response = await this.helpers.httpRequestWithAuthentication.call(
-							this,
-							credentialType,
-							{
-								method: 'GET',
-								url: `${baseUrl}/api/administration/deviceControl/collections/${configId}`,
-								qs,
-								json: true,
-							},
+					} else {
+						returnData.push(
+							await executeControlRuleOperation(this, 'deviceControl', 'rulesData', operation, i),
 						);
-
-						returnData.push(extractResponseData(response));
-					} else if (operation === 'createRules') {
-						const rulesDataStr = this.getNodeParameter('rulesData', i) as string;
-
-						let rules;
-						try {
-							rules = JSON.parse(rulesDataStr);
-						} catch {
-							throw new NodeOperationError(this.getNode(), 'Invalid JSON in rules data field');
-						}
-
-						const body = {
-							configId,
-							configVersion: configVersion || undefined,
-							rules,
-						};
-
-						const response = await this.helpers.httpRequestWithAuthentication.call(
-							this,
-							credentialType,
-							{
-								method: 'POST',
-								url: `${baseUrl}/api/administration/deviceControl/rules`,
-								body,
-								json: true,
-							},
-						);
-
-						returnData.push(extractResponseData(response));
-					} else if (operation === 'updateRules') {
-						const rulesDataStr = this.getNodeParameter('rulesData', i) as string;
-
-						let rules;
-						try {
-							rules = JSON.parse(rulesDataStr);
-						} catch {
-							throw new NodeOperationError(this.getNode(), 'Invalid JSON in rules data field');
-						}
-
-						const body = {
-							configId,
-							configVersion: configVersion || undefined,
-							rules,
-						};
-
-						const response = await this.helpers.httpRequestWithAuthentication.call(
-							this,
-							credentialType,
-							{
-								method: 'PATCH',
-								url: `${baseUrl}/api/administration/deviceControl/rules`,
-								body,
-								json: true,
-							},
-						);
-
-						returnData.push(extractResponseData(response));
-					} else if (operation === 'updateCollections') {
-						const rulesDataStr = this.getNodeParameter('rulesData', i) as string;
-
-						let collections;
-						try {
-							collections = JSON.parse(rulesDataStr);
-						} catch {
-							throw new NodeOperationError(
-								this.getNode(),
-								'Invalid JSON in collections data field',
-							);
-						}
-
-						const body = {
-							configId,
-							configVersion: configVersion || undefined,
-							collections,
-						};
-
-						const response = await this.helpers.httpRequestWithAuthentication.call(
-							this,
-							credentialType,
-							{
-								method: 'PATCH',
-								url: `${baseUrl}/api/administration/deviceControl/collections`,
-								body,
-								json: true,
-							},
-						);
-
-						returnData.push(extractResponseData(response));
-					} else if (operation === 'deleteRules') {
-						const ruleIdsStr = this.getNodeParameter('ruleIds', i) as string;
-						const ruleIds = ruleIdsStr.split(',').map((id) => id.trim());
-
-						const body = {
-							configId,
-							configVersion: configVersion || undefined,
-							ruleIds,
-						};
-
-						const response = await this.helpers.httpRequestWithAuthentication.call(
-							this,
-							credentialType,
-							{
-								method: 'DELETE',
-								url: `${baseUrl}/api/administration/deviceControl/rules`,
-								body,
-								json: true,
-							},
-						);
-
-						returnData.push(extractResponseData(response));
 					}
+
 				} else if (resource === 'driveRules') {
 					// =====================================
 					// Drive Rules Operations
 					// =====================================
-					const configId = this.getNodeParameter('configId', i) as string;
-					const configVersion = this.getNodeParameter('configVersion', i) as number;
-
-					if (operation === 'getRules') {
-						const qs: IDataObject = {
-							configVersion: configVersion || undefined,
-						};
-
-						const response = await this.helpers.httpRequestWithAuthentication.call(
-							this,
-							credentialType,
-							{
-								method: 'GET',
-								url: `${baseUrl}/api/administration/driveControl/rules/${configId}`,
-								qs,
-								json: true,
-							},
+					if (operation === 'getRule') {
+						const ruleId = this.getNodeParameter('ruleId', i) as string;
+						const response = await driveLockApiRequest.call(
+							this, 'GET', `/api/administration/driveControl/rules/${ruleId}`,
 						);
-
 						returnData.push(extractResponseData(response));
-					} else if (operation === 'getCollections') {
-						const qs: IDataObject = {
-							configVersion: configVersion || undefined,
-						};
-
-						const response = await this.helpers.httpRequestWithAuthentication.call(
-							this,
-							credentialType,
-							{
-								method: 'GET',
-								url: `${baseUrl}/api/administration/driveControl/collections/${configId}`,
-								qs,
-								json: true,
-							},
+					} else {
+						returnData.push(
+							await executeControlRuleOperation(this, 'driveControl', 'rulesData', operation, i),
 						);
-
-						returnData.push(extractResponseData(response));
-					} else if (operation === 'createRules') {
-						const rulesDataStr = this.getNodeParameter('rulesData', i) as string;
-
-						let rules;
-						try {
-							rules = JSON.parse(rulesDataStr);
-						} catch {
-							throw new NodeOperationError(this.getNode(), 'Invalid JSON in rules data field');
-						}
-
-						const body = {
-							configId,
-							configVersion: configVersion || undefined,
-							rules,
-						};
-
-						const response = await this.helpers.httpRequestWithAuthentication.call(
-							this,
-							credentialType,
-							{
-								method: 'POST',
-								url: `${baseUrl}/api/administration/driveControl/rules`,
-								body,
-								json: true,
-							},
-						);
-
-						returnData.push(extractResponseData(response));
-					} else if (operation === 'updateRules') {
-						const rulesDataStr = this.getNodeParameter('rulesData', i) as string;
-
-						let rules;
-						try {
-							rules = JSON.parse(rulesDataStr);
-						} catch {
-							throw new NodeOperationError(this.getNode(), 'Invalid JSON in rules data field');
-						}
-
-						const body = {
-							configId,
-							configVersion: configVersion || undefined,
-							rules,
-						};
-
-						const response = await this.helpers.httpRequestWithAuthentication.call(
-							this,
-							credentialType,
-							{
-								method: 'PATCH',
-								url: `${baseUrl}/api/administration/driveControl/rules`,
-								body,
-								json: true,
-							},
-						);
-
-						returnData.push(extractResponseData(response));
-					} else if (operation === 'updateCollections') {
-						const rulesDataStr = this.getNodeParameter('rulesData', i) as string;
-
-						let collections;
-						try {
-							collections = JSON.parse(rulesDataStr);
-						} catch {
-							throw new NodeOperationError(
-								this.getNode(),
-								'Invalid JSON in collections data field',
-							);
-						}
-
-						const body = {
-							configId,
-							configVersion: configVersion || undefined,
-							collections,
-						};
-
-						const response = await this.helpers.httpRequestWithAuthentication.call(
-							this,
-							credentialType,
-							{
-								method: 'PATCH',
-								url: `${baseUrl}/api/administration/driveControl/collections`,
-								body,
-								json: true,
-							},
-						);
-
-						returnData.push(extractResponseData(response));
-					} else if (operation === 'deleteRules') {
-						const ruleIdsStr = this.getNodeParameter('ruleIds', i) as string;
-						const ruleIds = ruleIdsStr.split(',').map((id) => id.trim());
-
-						const body = {
-							configId,
-							configVersion: configVersion || undefined,
-							ruleIds,
-						};
-
-						const response = await this.helpers.httpRequestWithAuthentication.call(
-							this,
-							credentialType,
-							{
-								method: 'DELETE',
-								url: `${baseUrl}/api/administration/driveControl/rules`,
-								body,
-								json: true,
-							},
-						);
-
-						returnData.push(extractResponseData(response));
 					}
+
 				} else if (resource === 'policy') {
 					// =====================================
 					// Policy Operations
@@ -1452,145 +991,70 @@ export class Drivelock implements INodeType {
 					if (operation === 'get') {
 						const policyId = this.getNodeParameter('policyId', i) as string;
 
-						const response = await this.helpers.httpRequestWithAuthentication.call(
-							this,
-							credentialType,
-							{
-								method: 'GET',
-								url: `${baseUrl}/api/administration/policy/${policyId}`,
-								json: true,
-							},
+						const response = await driveLockApiRequest.call(
+							this, 'GET', `/api/administration/policy/${policyId}`,
 						);
-
 						returnData.push(extractResponseData(response));
+
 					} else if (operation === 'create') {
 						const policyDataStr = this.getNodeParameter('policyData', i) as string;
 
-						let policyData;
-						try {
-							policyData = JSON.parse(policyDataStr);
-						} catch {
-							throw new NodeOperationError(
-								this.getNode(),
-								'Invalid JSON in policy data field',
-							);
-						}
+						const policyData = parseJsonParameter(policyDataStr, this.getNode(), i, 'policyData');
 
-						const response = await this.helpers.httpRequestWithAuthentication.call(
-							this,
-							credentialType,
-							{
-								method: 'POST',
-								url: `${baseUrl}/api/administration/policy`,
-								body: policyData,
-								json: true,
-							},
+						const response = await driveLockApiRequest.call(
+							this, 'POST', '/api/administration/policy', policyData,
 						);
-
 						returnData.push(extractResponseData(response));
+
 					} else if (operation === 'update') {
 						const policyId = this.getNodeParameter('policyId', i) as string;
 						const policyDataStr = this.getNodeParameter('policyData', i) as string;
 
-						let policyData;
-						try {
-							policyData = JSON.parse(policyDataStr);
-						} catch {
-							throw new NodeOperationError(
-								this.getNode(),
-								'Invalid JSON in policy data field',
-							);
-						}
+						const policyData = parseJsonParameter(policyDataStr, this.getNode(), i, 'policyData');
 
-						const response = await this.helpers.httpRequestWithAuthentication.call(
-							this,
-							credentialType,
-							{
-								method: 'PATCH',
-								url: `${baseUrl}/api/administration/policy/${policyId}`,
-								body: policyData,
-								json: true,
-							},
+						const response = await driveLockApiRequest.call(
+							this, 'PATCH', `/api/administration/policy/${policyId}`, policyData,
 						);
-
 						returnData.push(extractResponseData(response));
+
 					} else if (operation === 'delete') {
 						const policyId = this.getNodeParameter('policyId', i) as string;
 
-						const response = await this.helpers.httpRequestWithAuthentication.call(
-							this,
-							credentialType,
-							{
-								method: 'DELETE',
-								url: `${baseUrl}/api/administration/policy/${policyId}`,
-								json: true,
-							},
+						const response = await driveLockApiRequest.call(
+							this, 'DELETE', `/api/administration/policy/${policyId}`,
 						);
-
 						returnData.push(extractResponseData(response));
+
 					} else if (operation === 'getAssignments') {
 						const policyId = this.getNodeParameter('policyId', i) as string;
 
-						const response = await this.helpers.httpRequestWithAuthentication.call(
-							this,
-							credentialType,
-							{
-								method: 'GET',
-								url: `${baseUrl}/api/administration/policy/${policyId}/assignments`,
-								json: true,
-							},
+						const response = await driveLockApiRequest.call(
+							this, 'GET', `/api/administration/policy/${policyId}/assignments`,
 						);
-
 						returnData.push(extractResponseData(response));
+
 					} else if (operation === 'assignToGroups') {
 						const policyId = this.getNodeParameter('policyId', i) as string;
 						const groupIdsStr = this.getNodeParameter('groupIds', i) as string;
-						const groupIds = groupIdsStr.split(',').map((id) => id.trim());
+						const groupIds = validateCommaSeparatedIds(groupIdsStr, this.getNode(), i, 'groupIds');
 
-						const body = {
-							policyId,
-							groupIds,
-						};
-
-						const response = await this.helpers.httpRequestWithAuthentication.call(
-							this,
-							credentialType,
-							{
-								method: 'POST',
-								url: `${baseUrl}/api/administration/policy/${policyId}/assign`,
-								body,
-								json: true,
-							},
+						const body: IDataObject = { policyId, groupIds };
+						const response = await driveLockApiRequest.call(
+							this, 'POST', `/api/administration/policy/${policyId}/assign`, body,
 						);
-
 						returnData.push(extractResponseData(response));
 					}
 				}
 
 			} catch (error) {
-
-				// if (this.continueOnFail()) {
-				// 	const executionErrorData = this.helpers.constructExecutionMetaData(
-				// 		this.helpers.returnJsonArray({ error: error.message }),
-				// 		{ itemData: { item: i } },
-				// 	);
-
-				// 	returnData.push(...executionErrorData);
-				// 	continue;
-				// }
-				// throw error;
-
 				if (this.continueOnFail()) {
-					returnData.push({ error: error.message });
+					returnData.push({ error: (error as Error).message });
 					continue;
 				}
-				throw error;				
+				throw error;
 			}
-
 		}
 
 		return [this.helpers.returnJsonArray(returnData)];
-
-    };
-
+	}
 }

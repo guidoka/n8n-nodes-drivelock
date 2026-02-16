@@ -56,7 +56,7 @@ export class DrivelockApi implements ICredentialType {
 					value: 'https://dev.drivelock.cloud',
 				},				
 			],
-			default: 'api.drivelock.cloud',
+			default: 'https://api.drivelock.cloud',
 		},		
 	];
 
@@ -72,7 +72,7 @@ export class DrivelockApi implements ICredentialType {
 	test: ICredentialTestRequest = {
 		request: {
 			baseURL: '={{ $credentials.baseUrl }}',
-			url: '/api/administration/entity/Computers?query=eq(name,MyComputer)',
+			url: '/api/administration/entity/Computers/count',
 			method: 'GET',
 		},
 	};

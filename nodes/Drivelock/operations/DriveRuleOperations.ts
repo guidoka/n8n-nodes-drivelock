@@ -34,6 +34,12 @@ export const driveRuleOperations: INodeProperties[] = [
                 action: 'Get drive collections',
             },
             {
+                name: 'Get Rule by ID',
+                value: 'getRule',
+                description: 'Get a single drive control rule by its rule ID',
+                action: 'Get drive rule by ID',
+            },
+            {
                 name: 'Get Rules',
                 value: 'getRules',
                 description: 'Get drive control rules',
@@ -62,6 +68,7 @@ export const driveRuleOperations: INodeProperties[] = [
         displayOptions: {
             show: {
                 resource: ['driveRules'],
+                operation: ['createRules', 'deleteRules', 'getCollections', 'getRules', 'updateCollections', 'updateRules'],
             },
         },
         default: '',
@@ -74,9 +81,28 @@ export const driveRuleOperations: INodeProperties[] = [
         displayOptions: {
             show: {
                 resource: ['driveRules'],
+                operation: ['createRules', 'deleteRules', 'getCollections', 'getRules', 'updateCollections', 'updateRules'],
             },
         },
         default: 0,
+    },
+
+    {
+        displayName: 'Rule Name or ID',
+        name: 'ruleId',
+        type: 'options',
+        typeOptions: {
+            loadOptionsMethod: 'getDriveRuleIds',
+        },
+        displayOptions: {
+            show: {
+                resource: ['driveRules'],
+                operation: ['getRule'],
+            },
+        },
+        default: '',
+        required: true,
+        description: 'Choose from the list, or specify an ID using an <a href="https://docs.n8n.io/code/expressions/">expression</a>',
     },
 
     {

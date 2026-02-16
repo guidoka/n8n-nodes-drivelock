@@ -34,6 +34,12 @@ export const deviceRuleOperations: INodeProperties[] = [
                 action: 'Get device collections',
             },
             {
+                name: 'Get Rule by ID',
+                value: 'getRule',
+                description: 'Get a single device control rule by its rule ID',
+                action: 'Get device rule by ID',
+            },
+            {
                 name: 'Get Rules',
                 value: 'getRules',
                 description: 'Get device control rules',
@@ -62,6 +68,7 @@ export const deviceRuleOperations: INodeProperties[] = [
         displayOptions: {
             show: {
                 resource: ['deviceRules'],
+                operation: ['createRules', 'deleteRules', 'getCollections', 'getRules', 'updateCollections', 'updateRules'],
             },
         },
         default: '',
@@ -74,9 +81,28 @@ export const deviceRuleOperations: INodeProperties[] = [
         displayOptions: {
             show: {
                 resource: ['deviceRules'],
+                operation: ['createRules', 'deleteRules', 'getCollections', 'getRules', 'updateCollections', 'updateRules'],
             },
         },
         default: 0,
+    },
+
+    {
+        displayName: 'Rule Name or ID',
+        name: 'ruleId',
+        type: 'options',
+        typeOptions: {
+            loadOptionsMethod: 'getDeviceRuleIds',
+        },
+        displayOptions: {
+            show: {
+                resource: ['deviceRules'],
+                operation: ['getRule'],
+            },
+        },
+        default: '',
+        required: true,
+        description: 'Choose from the list, or specify an ID using an <a href="https://docs.n8n.io/code/expressions/">expression</a>',
     },
 
     {

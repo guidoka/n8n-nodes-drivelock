@@ -1,5 +1,5 @@
 import type { INodeProperties } from 'n8n-workflow';
-//import { entityBinariesOperations } from './EntityBinariesOperations';
+import { makeFilterProperties } from './FilterOperations';
 
 export const entityOperations: INodeProperties[] = [
     // =====================================
@@ -17,16 +17,10 @@ export const entityOperations: INodeProperties[] = [
         },
         options: [
             {
-                name: 'Get List',
-                value: 'getList',
-                description: 'Get a list of entities',
-                action: 'Get a list of entities',
-            },
-            {
-                name: 'Get Count',
-                value: 'getCount',
-                description: 'Get count of entities',
-                action: 'Get count of entities',
+                name: 'Export',
+                value: 'export',
+                description: 'Export entities to CSV or JSON',
+                action: 'Export entities',
             },
             {
                 name: 'Get by ID',
@@ -35,10 +29,22 @@ export const entityOperations: INodeProperties[] = [
                 action: 'Get entity by ID',
             },
             {
-                name: 'Export',
-                value: 'export',
-                description: 'Export entities to CSV or JSON',
-                action: 'Export entities',
+                name: 'Get Count',
+                value: 'getCount',
+                description: 'Get count of entities',
+                action: 'Get count of entities',
+            },
+            {
+                name: 'Get List',
+                value: 'getList',
+                description: 'Get a list of entities',
+                action: 'Get a list of entities',
+            },
+            {
+                name: 'Get Permissions',
+                value: 'getPermissions',
+                description: 'Get permissions for an entity',
+                action: 'Get entity permissions',
             },
         ],
         default: 'getList',
@@ -54,7 +60,6 @@ export const entityOperations: INodeProperties[] = [
                 resource: ['entity'],
             },
         },
-        // eslint-disable-next-line n8n-nodes-base/node-param-options-type-unsorted-items
         options: [
             {
                 name: 'ACBinaries',
@@ -136,6 +141,25 @@ export const entityOperations: INodeProperties[] = [
         description: 'Whether to include one-to-one relation properties',
     },
 
+    // Entity Get Permissions
+    {
+        displayName: 'Entity Name or ID',
+        name: 'entityId',
+        type: 'options',
+        typeOptions: {
+            loadOptionsMethod: 'getEntityIds',
+        },
+        displayOptions: {
+            show: {
+                resource: ['entity'],
+                operation: ['getPermissions'],
+            },
+        },
+        default: '',
+        required: true,
+        description: 'Choose from the list, or specify an ID using an <a href="https://docs.n8n.io/code/expressions/">expression</a>',
+    },
+
     // Entity List/Export Common Fields
     {
         displayName: 'Additional Fields',
@@ -158,13 +182,6 @@ export const entityOperations: INodeProperties[] = [
                 type: 'string',
                 default: '',
                 description: 'Comma-separated list of properties to return (e.g., name,createdAt)',
-            },
-            {
-                displayName: 'Query (RQL)',
-                name: 'query',
-                type: 'string',
-                default: '',
-                description: 'RQL query for filtering (e.g., eq(name,"MyComputer"))',
             },
             {
                 displayName: 'Sort By',
@@ -215,8 +232,47 @@ export const entityOperations: INodeProperties[] = [
                 default: false,
                 description: 'Whether you want the complete data',
             },
+            {
+                displayName: 'Get as Flattened List',
+                name: 'getAsFlattenedList',
+                type: 'boolean',
+                default: false,
+                description: 'Whether to return a flattened list instead of a nested object tree',
+            },
         ],
     },
+    // Export-only Additional Fields (mask params)
+    {
+        displayName: 'Additional Fields',
+        name: 'additionalFields',
+        type: 'collection',
+        placeholder: 'Add Field',
+        default: {},
+        displayOptions: {
+            show: {
+                resource: ['entity'],
+                operation: ['export'],
+            },
+        },
+        options: [
+            {
+                displayName: 'Mask Computer Properties',
+                name: 'maskComputerProperties',
+                type: 'boolean',
+                default: false,
+                description: 'Whether to mask computer-related properties in the export response',
+            },
+            {
+                displayName: 'Mask User Properties',
+                name: 'maskUserProperties',
+                type: 'boolean',
+                default: false,
+                description: 'Whether to mask user-related properties in the export response',
+            },
+        ],
+    },
+    // Filter Builder — for getList, getCount, export
+    ...makeFilterProperties(['entity'], ['getList', 'getCount', 'export']),
 
     // Export Specific Fields
     {

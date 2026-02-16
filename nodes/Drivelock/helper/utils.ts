@@ -1,5 +1,3 @@
-// import { IDataObject } from "n8n-workflow";
-
 export type DynamicFields = {
   [key: string]: string | null;
 };
@@ -38,7 +36,7 @@ export interface DriveLockQuery {
 }
 
 export interface DriveLockApiResponse<T> {
-	data: T | T[];              // return is single object or array (as i understood)
+	data: T;
 	total?: number | null;      // optional
 	additionalInfo?: number;    // optional
 	timeStamp?: string;         // optional

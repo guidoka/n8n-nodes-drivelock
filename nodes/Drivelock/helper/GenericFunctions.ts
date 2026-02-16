@@ -6,44 +6,50 @@ import type {
 	JsonObject,
 	IHttpRequestMethods,
 	IHttpRequestOptions,
-	// ICredentialDataDecryptedObject,
-	// ICredentialTestFunctions,
 } from 'n8n-workflow';
 
-import { NodeApiError } from 'n8n-workflow';
+import { NodeApiError, sleep } from 'n8n-workflow';
 import { DriveLockApiResponse } from './utils';
 
-// function assertDriveLockResponse(x: unknown): asserts x is DriveLockApiResponse<unknown> {
-// 	if (
-// 		typeof x !== 'object' || 
-// 		x === null
-// 	) throw new Error('Unerwartete DriveLock API Response');
+const MAX_RETRIES = 3;
+const BASE_DELAY_MS = 1000;
 
-// 	const obj = x as Record<string, unknown>;
-// 	if (!Array.isArray(obj.data)) {
-// 		throw new Error('Unerwartete DriveLock API Response');
-// 	}
-// }
+function isRetryableStatusCode(httpCode: string | null | undefined): boolean {
+	if (!httpCode) return false;
+	const code = Number(httpCode);
+	return code === 429 || (code >= 500 && code <= 599);
+}
+
+function sanitizeErrorForLogging(error: unknown): JsonObject {
+	if (error && typeof error === 'object') {
+		const err = { ...(error as Record<string, unknown>) };
+		// Remove axios request config which contains headers including apikey
+		delete err.config;
+		// Remove request object which may contain raw socket/headers
+		delete err.request;
+		return err as JsonObject;
+	}
+	return error as JsonObject;
+}
 
 /**
  * Make an API request to DriveLock
- *
  */
 export async function driveLockApiRequest<T = unknown>(
 	this: IHookFunctions | IExecuteFunctions | ILoadOptionsFunctions,
 	method: IHttpRequestMethods,
 	endpoint: string,
-	body: IDataObject = {},
+	body: unknown = {},
 	query?: IDataObject,
 	option: IDataObject = {},
 ): Promise<DriveLockApiResponse<T>> {
-	
+
 	const options: IHttpRequestOptions = {
 		method,
 		headers: {
 			'User-Agent': 'n8n',
 		},
-		body,
+		body: body as IDataObject,
 		qs: query,
 		url: '',
 		json: true,
@@ -53,58 +59,49 @@ export async function driveLockApiRequest<T = unknown>(
 		Object.assign(options, option);
 	}
 
-	try {
+	const credentialType = 'driveLockApi';
+	const credentials = await this.getCredentials(credentialType);
 
-		const credentialType = 'driveLockApi';
-		const credentials = await this.getCredentials(credentialType);
-		
+	const baseUrl = credentials.baseUrl || 'https://api.drivelock.cloud';
+	options.url = `${baseUrl}${endpoint}`;
 
-		const baseUrl = credentials.baseUrl || 'https://api.drivelock.cloud';
-		options.url = `${baseUrl}${endpoint}`;
+	let lastError: NodeApiError | undefined;
+	for (let attempt = 0; attempt <= MAX_RETRIES; attempt++) {
+		try {
+			const responseData = await this.helpers.httpRequestWithAuthentication.call(
+				this,
+				credentialType,
+				options,
+			);
+			return responseData as DriveLockApiResponse<T>;
+		} catch (error) {
+			const apiError =
+				error instanceof NodeApiError
+					? error
+					: new NodeApiError(this.getNode(), sanitizeErrorForLogging(error));
 
+			if (!isRetryableStatusCode(apiError.httpCode) || attempt === MAX_RETRIES) {
+				throw apiError;
+			}
 
-		const responseData = await this.helpers.httpRequestWithAuthentication.call(this, credentialType, options);
-		return responseData as DriveLockApiResponse<T>;
-
-	} catch (error) {
-		throw new NodeApiError(this.getNode(), error as JsonObject);
+			const baseDelay = BASE_DELAY_MS * Math.pow(2, attempt);
+			const jitteredDelay = baseDelay * (0.8 + Math.random() * 0.4);
+			await sleep(Math.min(jitteredDelay, 30_000));
+			lastError = apiError;
+		}
 	}
-
+	throw lastError!;
 }
-
-// export async function driveLockApiRequestAllItems(
-// 	this: IHookFunctions | IExecuteFunctions,
-// 	method: IHttpRequestMethods,
-// 	endpoint: string,
-
-// 	body: unknown = {},
-// 	query: IDataObject = {},
-// // eslint-disable-next-line @typescript-eslint/no-explicit-any
-// ): Promise<any> {
-// 	const returnData: IDataObject[] = [];
-
-// 	let responseData;
-
-// 	query.per_page = 100;
-// 	query.page = 1;
-
-// 	do {
-// 		responseData = await driveLockApiRequest.call(this, method, endpoint, body as IDataObject, query, {
-// 			resolveWithFullResponse: true,
-// 		});
-// 		query.page++;
-// 		returnData.push.apply(returnData, responseData.body as IDataObject[]);
-		
-// 	} while (responseData.headers?.link?.includes('next'));
-	
-// 	return returnData;
-// }
 
 export function isBase64(content: string) {
 	const base64regex = /^([0-9a-zA-Z+/]{4})*(([0-9a-zA-Z+/]{2}==)|([0-9a-zA-Z+/]{3}=))?$/;
 	return base64regex.test(content);
 }
 
+/**
+ * @deprecated Use parseJsonParameter from ValidationHelpers.ts instead.
+ * This function silently returns undefined on parse errors.
+ */
 export function validateJSON(json: string | undefined): string {
 	let result;
 	try {
@@ -114,27 +111,3 @@ export function validateJSON(json: string | undefined): string {
 	}
 	return result;
 }
-
-// export async function validateCredentials(
-// 	this: ICredentialTestFunctions,
-// 	decryptedCredentials: ICredentialDataDecryptedObject,
-// // eslint-disable-next-line @typescript-eslint/no-explicit-any
-// ): Promise<any> {
-// 	const credentials = decryptedCredentials;
-
-// 	const { apiKey } = credentials as {
-// 		apiKey: string;
-// 	};
-
-// 	const options: IHttpRequestOptions = {
-// 		method: 'GET',
-// 		headers: {},
-// 		url: String(credentials.server || 'https://api.hubapi.com/deals/v1/deal/paged'),
-// 		json: true,
-// 	};
-
-// 	options.headers = { Authorization: `Bearer ${apiKey}` };
-
-// 	// eslint-disable-next-line @n8n/community-nodes/no-deprecated-workflow-functions
-// 	return await this.helpers.request(options);
-// }

@@ -46,6 +46,39 @@ export const computerOperations: INodeProperties[] = [
                 description: 'Mark computers for rejoin',
                 action: 'Mark computers for rejoin',
             },
+            {
+                name: 'Clear Agent ID Token',
+                value: 'clearAgentIdToken',
+                description:
+                    'WARNING: This irreversibly clears the agent ID token. The computer will need to re-register with the DriveLock Enterprise Service. Use with caution.',
+                action: 'Clear agent ID token',
+            },
+            {
+                name: 'Set Image Flag',
+                value: 'setImageFlag',
+                description: 'Set the image flag on a computer (marks it as an image/template)',
+                action: 'Set image flag on a computer',
+            },
+            {
+                name: 'Stop Online Unlocks (Bulk)',
+                value: 'stopOnlineUnlocks',
+                description: 'Stop online unlocks for multiple computers at once',
+                action: 'Stop online unlocks for multiple computers',
+            },
+            {
+                name: 'BitLocker Recovery',
+                value: 'bitlockerRecovery',
+                description:
+                    'Retrieve BitLocker recovery key. Note: Recovery keys are returned as plain text. Ensure execution logs are secured appropriately.',
+                action: 'Get bit locker recovery key',
+            },
+            {
+                name: 'BitLocker2Go Recovery',
+                value: 'bitlocker2goRecovery',
+                description:
+                    'Retrieve BitLocker2Go recovery key for removable drives. Note: Recovery keys are returned as plain text. Ensure execution logs are secured appropriately.',
+                action: 'Get bit locker2 go recovery key',
+            },
         ],
         default: 'delete',
     },
@@ -175,5 +208,98 @@ export const computerOperations: INodeProperties[] = [
         },
         default: true,
         description: 'Whether to allow one-time ID token change',
+    },
+
+    // Clear Agent ID Token / Set Image Flag Fields
+    {
+        displayName: 'Computer Name or ID',
+        name: 'computerId',
+        type: 'options',
+        typeOptions: {
+            loadOptionsMethod: 'getComputerIds',
+        },
+        displayOptions: {
+            show: {
+                resource: ['computer'],
+                operation: ['clearAgentIdToken', 'setImageFlag'],
+            },
+        },
+        default: '',
+        required: true,
+        description: 'Choose from the list, or specify an ID using an <a href="https://docs.n8n.io/code/expressions/">expression</a>',
+    },
+    {
+        displayName: 'Image Flag',
+        name: 'imageFlag',
+        type: 'options',
+        displayOptions: {
+            show: {
+                resource: ['computer'],
+                operation: ['setImageFlag'],
+            },
+        },
+        options: [
+            {
+                name: 'Set (Mark as Image)',
+                value: true,
+                description: 'Mark this computer as an image/template',
+            },
+            {
+                name: 'Clear (Unmark as Image)',
+                value: false,
+                description: 'Remove the image/template flag from this computer',
+            },
+        ],
+        default: true,
+        required: true,
+        description: 'Choose the image flag value to set on the computer',
+    },
+
+    // Stop Online Unlocks (Bulk) Fields
+    {
+        displayName: 'Computer IDs',
+        name: 'computerIds',
+        type: 'string',
+        displayOptions: {
+            show: {
+                resource: ['computer'],
+                operation: ['stopOnlineUnlocks'],
+            },
+        },
+        default: '',
+        required: true,
+        description: 'Comma-separated list of computer IDs to stop online unlocks for',
+    },
+
+    // BitLocker Recovery Fields
+    {
+        displayName: 'Recovery ID',
+        name: 'recoveryId',
+        type: 'string',
+        displayOptions: {
+            show: {
+                resource: ['computer'],
+                operation: ['bitlockerRecovery'],
+            },
+        },
+        default: '',
+        required: true,
+        description: 'The BitLocker recovery identifier (volume ID or recovery password ID)',
+    },
+
+    // BitLocker2Go Recovery Fields
+    {
+        displayName: 'Recovery ID',
+        name: 'recoveryId',
+        type: 'string',
+        displayOptions: {
+            show: {
+                resource: ['computer'],
+                operation: ['bitlocker2goRecovery'],
+            },
+        },
+        default: '',
+        required: true,
+        description: 'The BitLocker2Go recovery identifier for the removable drive',
     },
 ];

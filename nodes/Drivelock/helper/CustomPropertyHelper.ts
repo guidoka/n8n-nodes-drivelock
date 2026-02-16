@@ -1,24 +1,6 @@
-// import { z } from 'zod';
-
 import { IDataObject } from 'n8n-workflow';
 
 import { Payload, CustomProps, ExtensionGroup } from './utils';
-
-// export const DisplayTextSchema = z.object({
-//   enu: z.string(),
-//   deu: z.string(),
-// });
-
-// export const ExtensionPropertySchema = z.object({
-//   propType: z.enum(['String', 'Int', 'Bool', 'DateTime']),
-//   description: z.string(),
-//   displayText: DisplayTextSchema,
-//   propertyGroup: z.string(),
-//   orderId: z.number(),
-// });
-
-// export const ExtensionGroupSchema = z.record(ExtensionPropertySchema);
-// export const CustomPropsSchema = z.record(ExtensionGroupSchema);
 
 export function hasNestedProperty(obj: unknown, path: string[]): boolean {
   let current: Record<string, unknown> | undefined;
@@ -75,10 +57,8 @@ export function checkPropsAndTypes(
   customProperties: IDataObject[]
 ): Record<string, { name: boolean; datatype: boolean; changed: boolean }> {
 
-  //let propertyNames: [string, string][] = customProperties.map(item => [item.propertyname as string, item.propertydatatype as string]) as [string, string][];
   const result: Record<string, { name: boolean; datatype: boolean; changed: boolean }> = {};
 
-  //for (const [propDBName, propDBType] of propertyNames) {
   for (const item of customProperties) {
 
     result[item.propertyname as string] = { name: false, datatype: true, changed: false };
