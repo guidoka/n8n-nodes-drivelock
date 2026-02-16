@@ -13,6 +13,7 @@ _App/service name_ is _one or two sentences describing the service this node int
 [Usage](#usage)
 [Resources](#resources)
 [Version history](#version-history)
+[Codebase Structure - Directory Layout](##codebase-structure-directory-layout)
 
 ## Installation
 
@@ -44,3 +45,42 @@ _By the time users are looking for community nodes, they probably already know n
 ## Version history
 
 _This is another optional section. If your node has multiple versions, include a short description of available versions and what changed, as well as any compatibility impact._
+
+## Codebase Structure - Directory Layout
+
+```
+n8n-nodes-drivelock/
+├── credentials/                 # Credential type definitions
+│   └── DrivelockApi.credentials.ts
+├── nodes/                       # n8n node implementations
+│   └── Drivelock/
+│       ├── Drivelock.node.ts      # Main node executor + metadata
+│       ├── Drivelock.node.json     # Node manifest for n8n registry
+│       ├── helper/                 # Shared utilities
+│       │   ├── GenericFunctions.ts
+│       │   ├── CustomPropertyHelper.ts
+│       │   └── utils.ts
+│       └── operations/             # Resource-specific operation definitions
+│           ├── ApplicationRuleOperations.ts
+│           ├── BinariesOperations.ts
+│           ├── ComputerOperations.ts
+│           ├── CustomPropertyOperations.ts
+│           ├── DeviceRuleOperations.ts
+│           ├── DriveRuleOperations.ts
+│           ├── EntityBinariesOperations.ts
+│           ├── EntityOperations.ts
+│           ├── GroupOperations.ts
+│           └── PolicyOperations.ts
+├── icons/                       # Node icon assets
+│   └── drivelock.svg
+├── .github/                     # GitHub workflows
+│   └── workflows/
+├── .vscode/                     # IDE configuration
+├── .prettierrc.js              # Prettier config
+├── eslint.config.mjs           # ESLint config
+├── tsconfig.json               # TypeScript config
+├── package.json                # Package definition
+├── package-lock.json           # Locked dependencies
+├── README.md                   # Project documentation
+└── CHANGELOG.md                # Version history
+```
