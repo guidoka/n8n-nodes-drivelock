@@ -4,11 +4,95 @@ import type { INodeProperties } from 'n8n-workflow';
  * makeFilterProperties — returns the full set of filter UI parameters
  * (filterMode, filterCombinator, filterGroups, filterRaw) scoped to the
  * provided resource/operation combinations via displayOptions.
+ *
+ * fieldDropdown controls Field input inside the condition builder:
+ *   always:true       — always a loadOptions dropdown (e.g. for binaries)
+ *   entityNames:[...] — dropdown only for those entityName values;
+ *                       other entity types keep the free-text + Field Type inputs
+ *   omitted           — free-text string + Field Type (status quo)
  */
 export function makeFilterProperties(
 	resourceValues: string[],
 	operationValues: string[],
+	fieldDropdown?: { always?: boolean; entityNames?: string[] },
 ): INodeProperties[] {
+	/* ------------------------------------------------------------------
+	 * Build the condition row "values" array based on fieldDropdown config
+	 * ------------------------------------------------------------------ */
+	/* eslint-disable n8n-nodes-base/node-param-display-name-wrong-for-dynamic-options */
+	const dropdownFieldParam: INodeProperties = {
+		displayName: 'Field',
+		name: 'field',
+		type: 'options',
+		default: '',
+		description:
+			'Choose from the list, or specify an ID using an <a href="https://docs.n8n.io/code/expressions/">expression</a>',
+		options: [],
+		typeOptions: { loadOptionsMethod: 'getFilterFields' },
+	};
+	/* eslint-enable n8n-nodes-base/node-param-display-name-wrong-for-dynamic-options */
+
+	const stringFieldParam: INodeProperties = {
+		displayName: 'Field',
+		name: 'field',
+		type: 'string',
+		default: '',
+		description:
+			'The field name to filter on. You can type any custom field name, or use known entity fields (e.g. name, ID, createdAt).',
+	};
+
+	const fieldTypeParam: INodeProperties = {
+		displayName: 'Field Type',
+		name: 'fieldType',
+		type: 'options',
+		options: [
+			{ name: 'String', value: 'string' },
+			{ name: 'Number', value: 'number' },
+			{ name: 'Boolean', value: 'boolean' },
+			{ name: 'Date/Time', value: 'date' },
+		],
+		default: 'string',
+		description: 'Data type of the field — controls value quoting in the query',
+	};
+
+	let conditionFieldParams: INodeProperties[];
+
+	if (fieldDropdown?.always) {
+		// Single entity type resource (e.g. binaries) — always show dropdown, no Field Type
+		conditionFieldParams = [dropdownFieldParam];
+	} else if (fieldDropdown?.entityNames?.length) {
+		// Multi-entity resource (e.g. entity) — dropdown for target types, string for others
+		const targets = fieldDropdown.entityNames;
+		conditionFieldParams = [
+			{ ...dropdownFieldParam, displayOptions: { show: { '/entityName': targets } } },
+			{ ...stringFieldParam,   displayOptions: { hide: { '/entityName': targets } } },
+			{ ...fieldTypeParam,     displayOptions: { hide: { '/entityName': targets } } },
+		];
+	} else {
+		// Status quo — free-text field + Field Type dropdown
+		conditionFieldParams = [stringFieldParam, fieldTypeParam];
+	}
+
+	const operatorParam: INodeProperties = {
+		displayName: 'Operator',
+		name: 'operator',
+		type: 'options',
+		// eslint-disable-next-line n8n-nodes-base/node-param-options-type-unsorted-items
+		options: [
+			{ name: 'Equals (Eq)', value: 'eq' },
+			{ name: 'Not Equals (Ne)', value: 'ne' },
+			{ name: 'Contains (String)', value: 'contains' },
+			{ name: 'Starts With (String)', value: 'startsWith' },
+			{ name: 'Ends With (String)', value: 'endsWith' },
+			{ name: 'Greater Than (Gt)', value: 'gt' },
+			{ name: 'Less Than (Lt)', value: 'lt' },
+			{ name: 'Greater Than or Equal (Ge)', value: 'ge' },
+			{ name: 'Less Than or Equal (Le)', value: 'le' },
+			{ name: 'In (Any Of)', value: 'in' },
+		],
+		default: 'eq',
+	};
+
 	return [
 		/* ------------------------------------------------------------------ */
 		/* filterMode — top-level mode switch (Builder vs Raw)                */
@@ -106,49 +190,9 @@ export function makeFilterProperties(
 								{
 									displayName: 'Condition',
 									name: 'condition',
-									// eslint-disable-next-line n8n-nodes-base/node-param-fixed-collection-type-unsorted-items
 									values: [
-										{
-											displayName: 'Field',
-											name: 'field',
-											type: 'string',
-											default: '',
-											description:
-												'The field name to filter on. You can type any custom field name, or use known entity fields (e.g. name, ID, createdAt).',
-										},
-										{
-											displayName: 'Field Type',
-											name: 'fieldType',
-											type: 'options',
-											options: [
-												{ name: 'String', value: 'string' },
-												{ name: 'Number', value: 'number' },
-												{ name: 'Boolean', value: 'boolean' },
-												{ name: 'Date/Time', value: 'date' },
-											],
-											default: 'string',
-											description:
-												'Data type of the field — controls value quoting in the query',
-										},
-										{
-											displayName: 'Operator',
-											name: 'operator',
-											type: 'options',
-											// eslint-disable-next-line n8n-nodes-base/node-param-options-type-unsorted-items
-											options: [
-												{ name: 'Equals (Eq)', value: 'eq' },
-												{ name: 'Not Equals (Ne)', value: 'ne' },
-												{ name: 'Contains (String)', value: 'contains' },
-												{ name: 'Starts With (String)', value: 'startsWith' },
-												{ name: 'Ends With (String)', value: 'endsWith' },
-												{ name: 'Greater Than (Gt)', value: 'gt' },
-												{ name: 'Less Than (Lt)', value: 'lt' },
-												{ name: 'Greater Than or Equal (Ge)', value: 'ge' },
-												{ name: 'Less Than or Equal (Le)', value: 'le' },
-												{ name: 'In (Any Of)', value: 'in' },
-											],
-											default: 'eq',
-										},
+										...conditionFieldParams,
+										operatorParam,
 										{
 											displayName: 'Negate (NOT)',
 											name: 'negate',

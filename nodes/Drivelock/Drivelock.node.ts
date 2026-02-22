@@ -16,6 +16,24 @@ import {
 
 import { driveLockApiRequest } from './helper/GenericFunctions';
 import { buildFilterQuery, FilterGroupsParam } from './helper/FilterBuilder';
+
+import acBinariesFields from './helper/fields/AcBinaries.json';
+import computersFields from './helper/fields/Computers.json';
+import devicesFields from './helper/fields/Devices.json';
+import drivesFields from './helper/fields/Drives.json';
+import softwaresFields from './helper/fields/Softwares.json';
+import usersFields from './helper/fields/Users.json';
+
+type FilterFieldEntry = { id: string; name: string; type: string };
+
+const FILTER_FIELDS: Record<string, FilterFieldEntry[]> = {
+	AcBinaries: acBinariesFields as FilterFieldEntry[],
+	Computers:  computersFields  as FilterFieldEntry[],
+	Devices:    devicesFields    as FilterFieldEntry[],
+	Drives:     drivesFields     as FilterFieldEntry[],
+	Softwares:  softwaresFields  as FilterFieldEntry[],
+	Users:      usersFields      as FilterFieldEntry[],
+};
 import { parseJsonParameter, validateCommaSeparatedIds } from './helper/ValidationHelpers';
 import * as customPropHelper from './helper/CustomPropertyHelper';
 import {
@@ -256,6 +274,24 @@ export class Drivelock implements INodeType {
 
 	methods = {
 		loadOptions: {
+			async getFilterFields(
+				this: ILoadOptionsFunctions,
+			): Promise<INodePropertyOptions[]> {
+				const resource = this.getCurrentNodeParameter('resource') as string;
+
+				let entityKey: string;
+				if (resource === 'binaries') {
+					entityKey = 'AcBinaries';
+				} else if (resource === 'entity') {
+					entityKey = this.getCurrentNodeParameter('entityName') as string;
+				} else {
+					return [];
+				}
+
+				const fields = FILTER_FIELDS[entityKey] ?? [];
+				return fields.map((f) => ({ name: f.name, value: f.id }));
+			},
+
 			async getBinaryProps(
 				this: ILoadOptionsFunctions,
 			): Promise<INodePropertyOptions[]> {
@@ -283,6 +319,14 @@ export class Drivelock implements INodeType {
 					const schema = this.getNodeParameter('schema') as string;
 					schemaExtention = `${schema}Extensions`;
 				} else if (resource === 'binaries') {
+					schemaExtention = 'AcBinariesExtensions';
+				} else if (resource === 'entity') {
+					const entityName = this.getCurrentNodeParameter('entityName') as string;
+					if (entityName !== 'AcBinaries') {
+						throw new NodeApiError(this.getNode(), {
+							message: `Schema extensions are only available for AcBinaries entities`,
+						});
+					}
 					schemaExtention = 'AcBinariesExtensions';
 				} else {
 					throw new NodeApiError(this.getNode(), {
@@ -811,7 +855,26 @@ export class Drivelock implements INodeType {
 						const additionalFields = this.getNodeParameter('additionalFields', i) as IDataObject;
 
 						const qs: IDataObject = {};
-						if (additionalFields.select) qs.select = additionalFields.select;
+
+						if (entityName === 'AcBinaries') {
+							const getFullObject = this.getNodeParameter('getFullObject', i, false) as boolean;
+							qs.getFullObjects = getFullObject;
+							if (!getFullObject) {
+								const propertiesToInclude = this.getNodeParameter('properties', i, []) as string[];
+								const extentionPropertiesToInclude = this.getNodeParameter('extentionproperties', i, []) as string[];
+								let selectFields = Array.isArray(propertiesToInclude) ? propertiesToInclude.join(',') : '';
+								if (Array.isArray(extentionPropertiesToInclude) && extentionPropertiesToInclude.length) {
+									const extFields = extentionPropertiesToInclude.map((k) => `extensions.${k}`).join(',');
+									selectFields = selectFields ? `${selectFields},${extFields}` : extFields;
+								}
+								if (selectFields) qs.select = `id,${selectFields}`;
+							}
+						} else {
+							if (additionalFields.select) qs.select = additionalFields.select;
+							if (additionalFields.getFullObjects !== undefined)
+								qs.getFullObjects = additionalFields.getFullObjects;
+						}
+
 						if (additionalFields.sortBy) qs.sortBy = additionalFields.sortBy;
 						if (additionalFields.groupBy) qs.groupBy = additionalFields.groupBy;
 						if (additionalFields.skip !== undefined) qs.skip = additionalFields.skip;
@@ -820,8 +883,6 @@ export class Drivelock implements INodeType {
 							qs.getTotalCount = additionalFields.getTotalCount;
 						if (additionalFields.includeLinkedObjects !== undefined)
 							qs.includeLinkedObjects = additionalFields.includeLinkedObjects;
-						if (additionalFields.getFullObjects !== undefined)
-							qs.getFullObjects = additionalFields.getFullObjects;
 						if (additionalFields.getAsFlattenedList !== undefined)
 							qs.getAsFlattenedList = additionalFields.getAsFlattenedList;
 
@@ -873,15 +934,31 @@ export class Drivelock implements INodeType {
 
 						const qs: IDataObject = { exportFormat };
 
-						if (additionalFields.select) qs.select = additionalFields.select;
+						if (entityName === 'AcBinaries') {
+							const getFullObject = this.getNodeParameter('getFullObject', i, false) as boolean;
+							qs.getFullObjects = getFullObject;
+							if (!getFullObject) {
+								const propertiesToInclude = this.getNodeParameter('properties', i, []) as string[];
+								const extentionPropertiesToInclude = this.getNodeParameter('extentionproperties', i, []) as string[];
+								let selectFields = Array.isArray(propertiesToInclude) ? propertiesToInclude.join(',') : '';
+								if (Array.isArray(extentionPropertiesToInclude) && extentionPropertiesToInclude.length) {
+									const extFields = extentionPropertiesToInclude.map((k) => `extensions.${k}`).join(',');
+									selectFields = selectFields ? `${selectFields},${extFields}` : extFields;
+								}
+								if (selectFields) qs.select = `id,${selectFields}`;
+							}
+						} else {
+							if (additionalFields.select) qs.select = additionalFields.select;
+							if (additionalFields.getFullObjects !== undefined)
+								qs.getFullObjects = additionalFields.getFullObjects;
+						}
+
 						if (additionalFields.sortBy) qs.sortBy = additionalFields.sortBy;
 						if (additionalFields.groupBy) qs.groupBy = additionalFields.groupBy;
 						if (additionalFields.skip !== undefined) qs.skip = additionalFields.skip;
 						if (additionalFields.take !== undefined) qs.take = additionalFields.take;
 						if (additionalFields.includeLinkedObjects !== undefined)
 							qs.includeLinkedObjects = additionalFields.includeLinkedObjects;
-						if (additionalFields.getFullObjects !== undefined)
-							qs.getFullObjects = additionalFields.getFullObjects;
 						if (additionalFields.getAsFlattenedList !== undefined)
 							qs.getAsFlattenedList = additionalFields.getAsFlattenedList;
 						if (additionalFields.maskUserProperties !== undefined)

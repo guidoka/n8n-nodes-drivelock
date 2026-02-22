@@ -1,5 +1,6 @@
 import type { INodeProperties } from 'n8n-workflow';
 import { makeFilterProperties } from './FilterOperations';
+import acBinariesFields from '../helper/fields/AcBinaries.json';
 
 export const binariesOperations: INodeProperties[] = [
 	{
@@ -82,55 +83,8 @@ export const binariesOperations: INodeProperties[] = [
 			},
 		},
 		description:
-			'Whether to include specific properties in the returned results. Choose from a list, or specify IDs using an <a href="https://docs.n8n.io/code/expressions/">expression</a>. Choose from the list, or specify IDs using an <a href="https://docs.n8n.io/code/expressions/">expression</a>.',
- 		//eslint-disable-next-line n8n-nodes-base/node-param-multi-options-type-unsorted-items	
-		options: [
-			{
-				name: 'File Hash', 
-				value: 'fileHash',
-			},
-			{
-				name: 'Version',
-				value: 'versionInfo'
-			},
-			{
-				name: 'Version Description',
-				value: 'verDescription'
-			},
-			{
-				name: 'Product',
-				value: 'product'
-			},
-			{
-				name: 'Date Created',
-				value: 'createdDate'
-			},
-			{
-				name: 'Certificate ID',
-				value: 'acCertificateID'
-			},
-			{
-				name: 'File Size',
-				value: 'fileSize'
-			},
-			{
-				name: 'Binary',
-				value: 'displayName'
-			},
-			{
-				name: 'Nested Filter',
-				value: 'associatedRule'
-			},
-			// {
-			// 	name: 'AcCertificates (Relation)',
-			// 	value: 'acCertificates.*'
-			// },
-			// {
-			// 	name: 'AcFile (Relation)',
-			// 	value: 'acFile.*'
-			// },				
-		]
-		
+			'Whether to include specific properties in the returned results. Choose from a list, or specify IDs using an <a href="https://docs.n8n.io/code/expressions/">expression</a>.',
+		options: acBinariesFields.map((f) => ({ name: f.name, value: f.id })),
 	},
 	{
 		displayName: 'Extention-Properties to Include',
@@ -152,7 +106,7 @@ export const binariesOperations: INodeProperties[] = [
 	
 	},
 	// Filter Builder — for binaries getAll
-	...makeFilterProperties(['binaries'], ['getAll']),
+	...makeFilterProperties(['binaries'], ['getAll'], { always: true }),
 	{
 		displayName: 'Options',
 		name: 'additionalFields',

@@ -1,0 +1,10 @@
+[
+	{ "id": "id",           "name": "ID",           "type": "string" },
+	{ "id": "name",         "name": "Name",         "type": "string" },
+	{ "id": "description",  "name": "Description",  "type": "string" },
+	{ "id": "createdAt",    "name": "Created At",   "type": "date"   },
+	{ "id": "deviceClass",  "name": "Device Class", "type": "string" },
+	{ "id": "vendorId",     "name": "Vendor ID",    "type": "string" },
+	{ "id": "productId",    "name": "Product ID",   "type": "string" },
+	{ "id": "serialNumber", "name": "Serial Number","type": "string" }
+]

@@ -1,0 +1,9 @@
+[
+	{ "id": "id",          "name": "ID",          "type": "string" },
+	{ "id": "name",        "name": "Name",        "type": "string" },
+	{ "id": "description", "name": "Description", "type": "string" },
+	{ "id": "createdAt",   "name": "Created At",  "type": "date"   },
+	{ "id": "version",     "name": "Version",     "type": "string" },
+	{ "id": "vendor",      "name": "Vendor",      "type": "string" },
+	{ "id": "installDate", "name": "Install Date","type": "date"   }
+]

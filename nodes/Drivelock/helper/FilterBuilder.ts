@@ -5,7 +5,7 @@ export type FieldType = 'string' | 'number' | 'boolean' | 'date';
 
 export interface ConditionRow {
 	field: string;
-	fieldType: FieldType;
+	fieldType?: FieldType;
 	operator: string;
 	negate: boolean;
 	value?: string;
@@ -146,23 +146,19 @@ export const ENTITY_FIELDS: Record<string, FieldDefinition[]> = _fieldDefs;
 // RQL serialization helpers
 // ---------------------------------------------------------------------------
 
-function quoteValue(value: string, fieldType: FieldType): string {
-	if (fieldType === 'number' || fieldType === 'boolean') return value;
-	return `"${value.replace(/"/g, '\\"')}"`;
-}
-
 function serializeCondition(row: ConditionRow): string {
-	const { field, fieldType, operator, negate, value = '', valueList = '' } = row;
+	const { field, operator, negate, value = '', valueList = '' } = row;
 
+	const op = operator.toLowerCase();
 	let expr: string;
-	if (operator === 'in') {
+	if (op === 'in') {
 		const values = valueList
 			.split(',')
-			.map(v => quoteValue(v.trim(), fieldType))
+			.map(v => v.trim())
 			.join(',');
 		expr = `in(${field},${values})`;
 	} else {
-		expr = `${operator}(${field},${quoteValue(value, fieldType)})`;
+		expr = `${op}(${field},${value})`;
 	}
 
 	return negate ? `not(${expr})` : expr;

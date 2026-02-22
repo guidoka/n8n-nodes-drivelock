@@ -1,5 +1,6 @@
 import type { INodeProperties } from 'n8n-workflow';
 import { makeFilterProperties } from './FilterOperations';
+import acBinariesFields from '../helper/fields/AcBinaries.json';
 
 export const entityOperations: INodeProperties[] = [
     // =====================================
@@ -160,7 +161,61 @@ export const entityOperations: INodeProperties[] = [
         description: 'Choose from the list, or specify an ID using an <a href="https://docs.n8n.io/code/expressions/">expression</a>',
     },
 
-    // Entity List/Export Common Fields
+    // AcBinaries-only: Get Full Object toggle (top-level, like binaries resource)
+    {
+        displayName: 'Get Full Object Data',
+        name: 'getFullObject',
+        type: 'boolean',
+        default: false,
+        displayOptions: {
+            show: {
+                resource: ['entity'],
+                operation: ['getList', 'export'],
+                entityName: ['AcBinaries'],
+            },
+        },
+        description: 'Whether to return the complete object data. When disabled, select specific properties to include.',
+    },
+    // AcBinaries-only: static Properties to Include (same set as binaries resource)
+    {
+        displayName: 'Properties to Include',
+        name: 'properties',
+        type: 'multiOptions',
+        default: [],
+        displayOptions: {
+            show: {
+                resource: ['entity'],
+                operation: ['getList', 'export'],
+                entityName: ['AcBinaries'],
+                getFullObject: [false],
+            },
+        },
+        description:
+            'Whether to include specific properties in the returned results. Choose from a list, or specify IDs using an <a href="https://docs.n8n.io/code/expressions/">expression</a>.',
+        options: acBinariesFields.map((f) => ({ name: f.name, value: f.id })),
+    },
+    // AcBinaries-only: Extension-Properties (dynamic, same as binaries resource)
+    {
+        displayName: 'Extension-Properties to Include',
+        name: 'extentionproperties',
+        type: 'multiOptions',
+        default: [],
+        displayOptions: {
+            show: {
+                resource: ['entity'],
+                operation: ['getList', 'export'],
+                entityName: ['AcBinaries'],
+                getFullObject: [false],
+            },
+        },
+        description:
+            'Choose from the list, or specify IDs using an <a href="https://docs.n8n.io/code/expressions/">expression</a>',
+        typeOptions: {
+            loadOptionsMethod: 'getSchemaExtentions',
+        },
+    },
+
+    // AcBinaries Additional Fields (no select, no getFullObjects — replaced by top-level params above)
     {
         displayName: 'Additional Fields',
         name: 'additionalFields',
@@ -171,7 +226,77 @@ export const entityOperations: INodeProperties[] = [
             show: {
                 resource: ['entity'],
                 operation: ['getList', 'getCount', 'export'],
-                // entityName: ['Computers','Devices','DefinedGroupMemberships','DriveLockConfigs','Drives', 'Events','Groups','Softwares','Users','WhiteLists']
+                entityName: ['AcBinaries'],
+            },
+        },
+        // eslint-disable-next-line n8n-nodes-base/node-param-collection-type-unsorted-items
+        options: [
+            {
+                displayName: 'Sort By',
+                name: 'sortBy',
+                type: 'string',
+                default: '',
+                description: 'Property name to sort by (prefix with - for descending)',
+            },
+            {
+                displayName: 'Group By',
+                name: 'groupBy',
+                type: 'string',
+                default: '',
+                description: 'Property name to group by',
+            },
+            {
+                displayName: 'Skip',
+                name: 'skip',
+                type: 'number',
+                default: 0,
+                description: 'Number of objects to skip (pagination)',
+            },
+            {
+                displayName: 'Take',
+                name: 'take',
+                type: 'number',
+                default: 100,
+                description: 'Maximum number of objects to return',
+            },
+            {
+                displayName: 'Get Total Count',
+                name: 'getTotalCount',
+                type: 'boolean',
+                default: false,
+                description: 'Whether to return total count',
+            },
+            {
+                displayName: 'Include Linked Objects',
+                name: 'includeLinkedObjects',
+                type: 'boolean',
+                default: false,
+                description: 'Whether you want linked objects in output',
+            },
+            {
+                displayName: 'Get as Flattened List',
+                name: 'getAsFlattenedList',
+                type: 'boolean',
+                default: false,
+                description: 'Whether to return a flattened list instead of a nested object tree',
+            },
+        ],
+    },
+
+    // Entity List/Export Common Fields (all entity types except AcBinaries)
+    {
+        displayName: 'Additional Fields',
+        name: 'additionalFields',
+        type: 'collection',
+        placeholder: 'Add Field',
+        default: {},
+        displayOptions: {
+            show: {
+                resource: ['entity'],
+                operation: ['getList', 'getCount', 'export'],
+            },
+            hide: {
+                entityName: ['AcBinaries'],
             },
         },
         // eslint-disable-next-line n8n-nodes-base/node-param-collection-type-unsorted-items
@@ -272,7 +397,9 @@ export const entityOperations: INodeProperties[] = [
         ],
     },
     // Filter Builder — for getList, getCount, export
-    ...makeFilterProperties(['entity'], ['getList', 'getCount', 'export']),
+    ...makeFilterProperties(['entity'], ['getList', 'getCount', 'export'], {
+      entityNames: ['AcBinaries', 'Computers', 'Devices', 'Drives', 'Softwares', 'Users'],
+    }),
 
     // Export Specific Fields
     {

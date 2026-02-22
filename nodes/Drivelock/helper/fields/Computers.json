@@ -1,0 +1,10 @@
+[
+	{ "id": "name",            "name": "Name",             "type": "string"  },
+	{ "id": "id",              "name": "ID",               "type": "string"  },
+	{ "id": "createdAt",       "name": "Created At",       "type": "date"    },
+	{ "id": "lastSeen",        "name": "Last Seen",        "type": "date"    },
+	{ "id": "agentVersion",    "name": "Agent Version",    "type": "string"  },
+	{ "id": "operatingSystem", "name": "Operating System", "type": "string"  },
+	{ "id": "domain",          "name": "Domain",           "type": "string"  },
+	{ "id": "active",          "name": "Active",           "type": "boolean" }
+]

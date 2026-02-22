@@ -1,0 +1,9 @@
+[
+	{ "id": "id",          "name": "ID",          "type": "string"  },
+	{ "id": "name",        "name": "Name",        "type": "string"  },
+	{ "id": "description", "name": "Description", "type": "string"  },
+	{ "id": "createdAt",   "name": "Created At",  "type": "date"    },
+	{ "id": "domain",      "name": "Domain",      "type": "string"  },
+	{ "id": "email",       "name": "Email",       "type": "string"  },
+	{ "id": "active",      "name": "Active",      "type": "boolean" }
+]
