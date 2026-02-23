@@ -160,7 +160,34 @@ export const entityOperations: INodeProperties[] = [
         description: 'Choose from the list, or specify an ID using an <a href="https://docs.n8n.io/code/expressions/">expression</a>',
     },
 
-    // Combined Properties + Extension-Properties to Include (dynamic, entity-aware)
+    // Properties Mode — Builder vs Raw
+    {
+        displayName: 'Properties Mode',
+        name: 'propertiesMode',
+        type: 'options',
+        options: [
+            {
+                name: 'Builder',
+                value: 'builder',
+                description: 'Select properties from the list',
+            },
+            {
+                name: 'RAW Properties',
+                value: 'raw',
+                description: 'Advanced: type the select string directly, e.g. name,agentVersion',
+            },
+        ],
+        default: 'builder',
+        displayOptions: {
+            show: {
+                resource: ['entity'],
+                operation: ['getList', 'export'],
+                entityName: ['AcBinaries', 'Computers', 'Users', 'Devices', 'Softwares', 'DefinedGroupMemberships', 'DriveLockConfigs', 'Drives', 'Events', 'Groups', 'WhiteLists'],
+            },
+        },
+    },
+
+    // Combined Properties + Extension-Properties to Include (dynamic, entity-aware) — Builder mode
     {
         displayName: 'Properties to Include',
         name: 'properties',
@@ -171,6 +198,7 @@ export const entityOperations: INodeProperties[] = [
                 resource: ['entity'],
                 operation: ['getList', 'export'],
                 entityName: ['AcBinaries', 'Computers', 'Users', 'Devices', 'Softwares', 'DefinedGroupMemberships', 'DriveLockConfigs', 'Drives', 'Events', 'Groups', 'WhiteLists'],
+                propertiesMode: ['builder'],
             },
         },
         description:
@@ -181,12 +209,56 @@ export const entityOperations: INodeProperties[] = [
         },
     },
 
+    // Raw Properties — raw select string (Raw mode)
+    {
+        displayName: 'Raw Properties',
+        name: 'propertiesRaw',
+        type: 'string',
+        default: '',
+        description: 'Comma-separated list of properties passed directly as <code>select=</code>, e.g. <code>name,agentVersion,lastSeen</code>. <code>id</code> is always prepended automatically.',
+        displayOptions: {
+            show: {
+                resource: ['entity'],
+                operation: ['getList', 'export'],
+                entityName: ['AcBinaries', 'Computers', 'Users', 'Devices', 'Softwares', 'DefinedGroupMemberships', 'DriveLockConfigs', 'Drives', 'Events', 'Groups', 'WhiteLists'],
+                propertiesMode: ['raw'],
+            },
+        },
+    },
+
     // Filter Builder — for getList, getCount, export
     ...makeFilterProperties(['entity'], ['getList', 'getCount', 'export'], {
       entityNames: ['AcBinaries', 'Computers', 'Devices', 'DefinedGroupMemberships', 'DriveLockConfigs', 'Drives', 'Events', 'Groups', 'Softwares', 'Users', 'WhiteLists'],
     }),
 
-    // Sort Fields — for entities with field definitions
+    // Sort Mode — Builder vs Raw OrderBy
+    {
+        displayName: 'Sort Mode',
+        name: 'sortMode',
+        type: 'options',
+        options: [
+            {
+                name: 'Builder',
+                value: 'builder',
+                description: 'Select fields and direction from the list',
+            },
+            {
+                name: 'RAW OrderBy',
+                value: 'raw',
+                description: 'Advanced: type the sortBy string directly, e.g. +name,-createdAt',
+            },
+        ],
+        default: 'builder',
+        displayOptions: {
+            show: {
+                resource: ['entity'],
+                operation: ['getList', 'export'],
+                entityName: ['AcBinaries', 'Computers', 'Users', 'Devices', 'Softwares', 'DefinedGroupMemberships', 'DriveLockConfigs', 'Drives', 'Events', 'Groups', 'WhiteLists'],
+            },
+        },
+    },
+
+    // Sort Fields — for entities with field definitions (Builder mode)
     {
         displayName: 'Sort Fields',
         name: 'sortFields',
@@ -199,6 +271,7 @@ export const entityOperations: INodeProperties[] = [
                 resource: ['entity'],
                 operation: ['getList', 'export'],
                 entityName: ['AcBinaries', 'Computers', 'Users', 'Devices', 'Softwares', 'DefinedGroupMemberships', 'DriveLockConfigs', 'Drives', 'Events', 'Groups', 'WhiteLists'],
+                sortMode: ['builder'],
             },
         },
         options: [
@@ -232,6 +305,23 @@ export const entityOperations: INodeProperties[] = [
                 ],
             },
         ],
+    },
+
+    // Sort Raw — raw sortBy string (Raw mode)
+    {
+        displayName: 'Raw Order By',
+        name: 'sortRaw',
+        type: 'string',
+        default: '',
+        description: 'Sort expression passed directly to the API, e.g. <code>+name,-createdAt</code>. Prefix fields with <code>+</code> (ascending) or <code>-</code> (descending).',
+        displayOptions: {
+            show: {
+                resource: ['entity'],
+                operation: ['getList', 'export'],
+                entityName: ['AcBinaries', 'Computers', 'Users', 'Devices', 'Softwares', 'DefinedGroupMemberships', 'DriveLockConfigs', 'Drives', 'Events', 'Groups', 'WhiteLists'],
+                sortMode: ['raw'],
+            },
+        },
     },
 
     // Additional Fields for entities with top-level property selection (no select, no getFullObjects)

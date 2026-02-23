@@ -51,11 +51,9 @@ import {
 	CustomPropsResponse,
 	CustomProps,
 	ExtensionGroup,
-	DriveLockQuery,
 } from './helper/utils';
 
 import { applicationRuleOperations } from './operations/ApplicationRuleOperations';
-import { binariesOperations } from './operations/BinariesOperations';
 import { computerOperations } from './operations/ComputerOperations';
 import { customPropertyOperations } from './operations/CustomPropertyOperations';
 import { deviceRuleOperations } from './operations/DeviceRuleOperations';
@@ -218,11 +216,6 @@ export class Drivelock implements INodeType {
 						description: 'Manage drive rules',
 					},
 					{
-						name: 'Binary',
-						value: 'binaries',
-						description: 'Manage binaries',
-					},
-					{
 						name: 'Entity',
 						value: 'entity',
 						description: 'Manage entities',
@@ -271,7 +264,6 @@ export class Drivelock implements INodeType {
 				default: 'changeoutput',
 			},
 			...applicationRuleOperations,
-			...binariesOperations,
 			...computerOperations,
 			...customPropertyOperations,
 			...deviceRuleOperations,
@@ -290,9 +282,7 @@ export class Drivelock implements INodeType {
 				const resource = this.getCurrentNodeParameter('resource') as string;
 
 				let entityKey: string;
-				if (resource === 'binaries') {
-					entityKey = 'AcBinaries';
-				} else if (resource === 'entity') {
+				if (resource === 'entity') {
 					entityKey = this.getCurrentNodeParameter('entityName') as string;
 				} else {
 					return [];
@@ -308,9 +298,7 @@ export class Drivelock implements INodeType {
 				const resource = this.getCurrentNodeParameter('resource') as string;
 
 				let entityKey: string;
-				if (resource === 'binaries') {
-					entityKey = 'AcBinaries';
-				} else if (resource === 'entity') {
+				if (resource === 'entity') {
 					entityKey = this.getCurrentNodeParameter('entityName') as string;
 				} else {
 					return [];
@@ -348,19 +336,6 @@ export class Drivelock implements INodeType {
 				return staticFields;
 			},
 
-			async getBinaryProps(
-				this: ILoadOptionsFunctions,
-			): Promise<INodePropertyOptions[]> {
-				const allOptions = (binariesOperations.find(
-					(field) => field.name === 'properties',
-				)?.options || []) as Array<{ name: string; value: string }>;
-
-				return allOptions.map((option) => ({
-					name: option.value,
-					value: option.value,
-				}));
-			},
-
 			async getSchemaExtentions(
 				this: ILoadOptionsFunctions,
 			): Promise<INodePropertyOptions[]> {
@@ -374,8 +349,6 @@ export class Drivelock implements INodeType {
 				if (resource === 'customproperty') {
 					const schema = this.getNodeParameter('schema') as string;
 					schemaExtention = `${schema}Extensions`;
-				} else if (resource === 'binaries') {
-					schemaExtention = 'AcBinariesExtensions';
 				} else if (resource === 'entity') {
 					const entityName = this.getCurrentNodeParameter('entityName') as string;
 					const supportedEntities = ['AcBinaries', 'Computers', 'Users', 'Devices', 'Softwares'];
@@ -683,106 +656,6 @@ export class Drivelock implements INodeType {
 						returnData.push({ success: true, payload });
 					}
 
-				} else if (resource === 'binaries') {
-
-					if (operation === 'getAll') {
-
-						const endpoint = '/api/administration/entity/AcBinaries';
-						const returnAll = this.getNodeParameter('returnAll', i) as boolean;
-						const getFullObject = this.getNodeParameter('getFullObject', i) as boolean;
-
-						let selectFields: string | undefined;
-
-						if (!getFullObject) {
-							const propertiesToInclude = this.getNodeParameter('properties', i);
-							const extentionPropertiesToInclude = this.getNodeParameter('extentionproperties', i);
-
-							if (Array.isArray(propertiesToInclude)) {
-								selectFields = propertiesToInclude.join(',');
-							}
-							if (Array.isArray(extentionPropertiesToInclude)) {
-								const extFields = extentionPropertiesToInclude
-									.map((key) => `extensions.${key}`)
-									.join(',');
-								if (extFields) {
-									selectFields = selectFields ? `${selectFields},${extFields}` : extFields;
-								}
-							}
-						}
-
-						const qs: DriveLockQuery = {
-							sortBy: '-extensions.VirusTotalLastFetch',
-							select: null,
-							getTotalCount: true,
-							getFullObjects: getFullObject,
-							getAsFlattenedList: false,
-						};
-
-						if (!getFullObject && selectFields) {
-							qs.select = `id,${selectFields}`;
-						}
-
-						const pageSize = 500;
-						qs.take = pageSize;
-
-						const filterMode = this.getNodeParameter('filterMode', i, 'builder') as 'builder' | 'raw';
-						const filterRaw = this.getNodeParameter('filterRaw', i, '') as string;
-						const filterCombinator = this.getNodeParameter('filterCombinator', i, 'and') as 'and' | 'or';
-						const filterGroupsParam = this.getNodeParameter('filterGroups', i, { groups: [] }) as FilterGroupsParam;
-						const builtQuery = buildFilterQuery(filterMode, filterRaw, filterCombinator, filterGroupsParam);
-						if (builtQuery) qs.query = builtQuery;
-
-						let limit = -1;
-						if (!returnAll) {
-							limit = this.getNodeParameter('limit', i) as number;
-							if (qs.take > limit) qs.take = limit;
-						}
-
-						const responseData = await (driveLockApiRequest<DriveLockItem[]>).call(
-							this, 'GET', endpoint, {}, qs,
-						);
-						const total = responseData.total ?? 0;
-
-						if (Array.isArray(responseData.data)) {
-							const targetCount = returnAll ? total : Math.min(limit, total);
-
-							if (responseData.data.length < targetCount) {
-								while (responseData.data.length < targetCount) {
-									qs.skip = responseData.data.length;
-
-									if (!returnAll) {
-										const remaining = limit - responseData.data.length;
-										qs.take = Math.min(pageSize, remaining);
-									}
-
-									try {
-										const additionalData = await (driveLockApiRequest<DriveLockItem[]>).call(
-											this, 'GET', endpoint, {}, qs,
-										);
-										if (!Array.isArray(additionalData.data)) {
-											(responseData as Record<string, unknown>).paginationWarning =
-												'Unexpected API response during pagination: data is not an array. Returning partial results.';
-											break;
-										}
-										responseData.data.push(...(additionalData.data as DriveLockItem[]));
-
-										if (!returnAll && responseData.data.length >= limit) break;
-									} catch (error) {
-										(responseData as Record<string, unknown>).paginationWarning =
-											`Pagination stopped after fetching ${responseData.data.length} of ${targetCount} items: ${(error as Error).message}`;
-										break;
-									}
-								}
-							}
-						}
-
-						responseData.n8nProcessedTotal = Array.isArray(responseData.data)
-							? responseData.data.length
-							: 0;
-
-						returnData.push(responseData as IDataObject);
-					}
-
 				} else if (resource === 'computer') {
 					// =====================================
 					// Computer Operations
@@ -914,13 +787,25 @@ export class Drivelock implements INodeType {
 						const qs: IDataObject = {};
 
 						if (['AcBinaries', 'Computers', 'Users', 'Devices', 'Softwares', 'DefinedGroupMemberships', 'DriveLockConfigs', 'Drives', 'Events', 'Groups', 'WhiteLists'].includes(entityName)) {
-							const propertiesToInclude = this.getNodeParameter('properties', i, []) as string[];
-							if (Array.isArray(propertiesToInclude) && propertiesToInclude.length) {
-								qs.select = `id,${propertiesToInclude.join(',')}`;
+							const propertiesMode = this.getNodeParameter('propertiesMode', i, 'builder') as 'builder' | 'raw';
+							if (propertiesMode === 'raw') {
+								const propertiesRaw = this.getNodeParameter('propertiesRaw', i, '') as string;
+								if (propertiesRaw) qs.select = `id,${propertiesRaw}`;
+							} else {
+								const propertiesToInclude = this.getNodeParameter('properties', i, []) as string[];
+								if (Array.isArray(propertiesToInclude) && propertiesToInclude.length) {
+									qs.select = `id,${propertiesToInclude.join(',')}`;
+								}
 							}
-							const sortFieldsParam = this.getNodeParameter('sortFields', i, { fields: [] }) as { fields?: Array<{ field: string; direction: string }> };
-							if (sortFieldsParam.fields?.length) {
-								qs.sortBy = sortFieldsParam.fields.map((f) => `${f.direction}${f.field}`).join(',');
+							const sortMode = this.getNodeParameter('sortMode', i, 'builder') as 'builder' | 'raw';
+							if (sortMode === 'raw') {
+								const sortRaw = this.getNodeParameter('sortRaw', i, '') as string;
+								if (sortRaw) qs.sortBy = sortRaw;
+							} else {
+								const sortFieldsParam = this.getNodeParameter('sortFields', i, { fields: [] }) as { fields?: Array<{ field: string; direction: string }> };
+								if (sortFieldsParam.fields?.length) {
+									qs.sortBy = sortFieldsParam.fields.map((f) => `${f.direction}${f.field}`).join(',');
+								}
 							}
 							if (additionalFields.getFullObjects !== undefined)
 								qs.getFullObjects = additionalFields.getFullObjects;
@@ -987,13 +872,25 @@ export class Drivelock implements INodeType {
 						const qs: IDataObject = { exportFormat };
 
 						if (['AcBinaries', 'Computers', 'Users', 'Devices', 'Softwares', 'DefinedGroupMemberships', 'DriveLockConfigs', 'Drives', 'Events', 'Groups', 'WhiteLists'].includes(entityName)) {
-							const propertiesToInclude = this.getNodeParameter('properties', i, []) as string[];
-							if (Array.isArray(propertiesToInclude) && propertiesToInclude.length) {
-								qs.select = `id,${propertiesToInclude.join(',')}`;
+							const propertiesMode = this.getNodeParameter('propertiesMode', i, 'builder') as 'builder' | 'raw';
+							if (propertiesMode === 'raw') {
+								const propertiesRaw = this.getNodeParameter('propertiesRaw', i, '') as string;
+								if (propertiesRaw) qs.select = `id,${propertiesRaw}`;
+							} else {
+								const propertiesToInclude = this.getNodeParameter('properties', i, []) as string[];
+								if (Array.isArray(propertiesToInclude) && propertiesToInclude.length) {
+									qs.select = `id,${propertiesToInclude.join(',')}`;
+								}
 							}
-							const sortFieldsParam = this.getNodeParameter('sortFields', i, { fields: [] }) as { fields?: Array<{ field: string; direction: string }> };
-							if (sortFieldsParam.fields?.length) {
-								qs.sortBy = sortFieldsParam.fields.map((f) => `${f.direction}${f.field}`).join(',');
+							const sortMode = this.getNodeParameter('sortMode', i, 'builder') as 'builder' | 'raw';
+							if (sortMode === 'raw') {
+								const sortRaw = this.getNodeParameter('sortRaw', i, '') as string;
+								if (sortRaw) qs.sortBy = sortRaw;
+							} else {
+								const sortFieldsParam = this.getNodeParameter('sortFields', i, { fields: [] }) as { fields?: Array<{ field: string; direction: string }> };
+								if (sortFieldsParam.fields?.length) {
+									qs.sortBy = sortFieldsParam.fields.map((f) => `${f.direction}${f.field}`).join(',');
+								}
 							}
 							if (additionalFields.getFullObjects !== undefined)
 								qs.getFullObjects = additionalFields.getFullObjects;
