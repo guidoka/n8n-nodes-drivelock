@@ -162,7 +162,6 @@ export const entityOperations: INodeProperties[] = [
 
     // Combined Properties + Extension-Properties to Include (dynamic, entity-aware)
     {
-        /* eslint-disable-next-line n8n-nodes-base/node-param-display-name-wrong-for-dynamic-options */
         displayName: 'Properties to Include',
         name: 'properties',
         type: 'multiOptions',
@@ -175,7 +174,7 @@ export const entityOperations: INodeProperties[] = [
             },
         },
         description:
-            'Select properties and extension-properties to include. Choose from the list, or specify IDs using an <a href="https://docs.n8n.io/code/expressions/">expression</a>. If no property is selected, all fields are returned by the API.',
+            'If no property is selected, all fields are returned by the API. Select properties and extension-properties to include. Choose from the list, or specify IDs using an <a href="https://docs.n8n.io/code/expressions/">expression</a>.',
         typeOptions: {
             loadOptionsMethod: 'getSortFields',
             loadOptionsDependsOn: ['entityName'],
