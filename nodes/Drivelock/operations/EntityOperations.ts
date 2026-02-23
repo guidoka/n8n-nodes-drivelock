@@ -215,6 +215,7 @@ export const entityOperations: INodeProperties[] = [
         name: 'propertiesRaw',
         type: 'string',
         default: '',
+        // eslint-disable-next-line n8n-nodes-base/node-param-description-miscased-id
         description: 'Comma-separated list of properties passed directly as <code>select=</code>, e.g. <code>name,agentVersion,lastSeen</code>. <code>id</code> is always prepended automatically.',
         displayOptions: {
             show: {
