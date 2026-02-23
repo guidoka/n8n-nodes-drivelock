@@ -19,20 +19,30 @@ import { buildFilterQuery, FilterGroupsParam } from './helper/FilterBuilder';
 
 import acBinariesFields from './helper/fields/AcBinaries.json';
 import computersFields from './helper/fields/Computers.json';
+import definedGroupMembershipsFields from './helper/fields/DefinedGroupMemberships.json';
+import driveLockConfigsFields from './helper/fields/DriveLockConfigs.json';
 import devicesFields from './helper/fields/Devices.json';
 import drivesFields from './helper/fields/Drives.json';
+import eventsFields from './helper/fields/Events.json';
+import groupsFields from './helper/fields/Groups.json';
 import softwaresFields from './helper/fields/Softwares.json';
 import usersFields from './helper/fields/Users.json';
+import whiteListsFields from './helper/fields/WhiteLists.json';
 
 type FilterFieldEntry = { id: string; name: string; type: string };
 
 const FILTER_FIELDS: Record<string, FilterFieldEntry[]> = {
 	AcBinaries: acBinariesFields as FilterFieldEntry[],
-	Computers:  computersFields  as FilterFieldEntry[],
-	Devices:    devicesFields    as FilterFieldEntry[],
-	Drives:     drivesFields     as FilterFieldEntry[],
-	Softwares:  softwaresFields  as FilterFieldEntry[],
-	Users:      usersFields      as FilterFieldEntry[],
+	Computers: computersFields as FilterFieldEntry[],
+	DefinedGroupMemberships: definedGroupMembershipsFields as FilterFieldEntry[],
+	DriveLockConfigs: driveLockConfigsFields as FilterFieldEntry[],
+	Devices: devicesFields as FilterFieldEntry[],
+	Drives: drivesFields as FilterFieldEntry[],
+	Events: eventsFields as FilterFieldEntry[],
+	Groups: groupsFields as FilterFieldEntry[],
+	Softwares: softwaresFields as FilterFieldEntry[],
+	Users: usersFields as FilterFieldEntry[],
+	WhiteLists: whiteListsFields as FilterFieldEntry[],
 };
 import { parseJsonParameter, validateCommaSeparatedIds } from './helper/ValidationHelpers';
 import * as customPropHelper from './helper/CustomPropertyHelper';
@@ -292,6 +302,52 @@ export class Drivelock implements INodeType {
 				return fields.map((f) => ({ name: f.name, value: f.id }));
 			},
 
+			async getSortFields(
+				this: ILoadOptionsFunctions,
+			): Promise<INodePropertyOptions[]> {
+				const resource = this.getCurrentNodeParameter('resource') as string;
+
+				let entityKey: string;
+				if (resource === 'binaries') {
+					entityKey = 'AcBinaries';
+				} else if (resource === 'entity') {
+					entityKey = this.getCurrentNodeParameter('entityName') as string;
+				} else {
+					return [];
+				}
+
+				const staticFields = (FILTER_FIELDS[entityKey] ?? []).map((f) => ({
+					name: f.name,
+					value: f.id,
+				}));
+
+				const supportedEntities = ['AcBinaries', 'Computers', 'Users', 'Devices', 'Softwares'];
+				if (!supportedEntities.includes(entityKey)) {
+					return staticFields;
+				}
+
+				try {
+					const customSchemes = await (driveLockApiRequest<CustomPropsResponse>).call(
+						this, 'GET', '/api/administration/entity/customSchema/getCustomSchemas', {},
+					);
+					if (!Array.isArray(customSchemes.data) && customSchemes.data?.customProps) {
+						const extensionGroupItems =
+							customSchemes.data.customProps[`${entityKey}Extensions`] as ExtensionGroup | undefined;
+						if (extensionGroupItems) {
+							const extFields = Object.keys(extensionGroupItems).map((key) => ({
+								name: `Extension: ${key}`,
+								value: `extensions.${key}`,
+							}));
+							return [...staticFields, ...extFields];
+						}
+					}
+				} catch {
+					// fall through to static fields only
+				}
+
+				return staticFields;
+			},
+
 			async getBinaryProps(
 				this: ILoadOptionsFunctions,
 			): Promise<INodePropertyOptions[]> {
@@ -322,12 +378,13 @@ export class Drivelock implements INodeType {
 					schemaExtention = 'AcBinariesExtensions';
 				} else if (resource === 'entity') {
 					const entityName = this.getCurrentNodeParameter('entityName') as string;
-					if (entityName !== 'AcBinaries') {
+					const supportedEntities = ['AcBinaries', 'Computers', 'Users', 'Devices', 'Softwares'];
+					if (!supportedEntities.includes(entityName)) {
 						throw new NodeApiError(this.getNode(), {
-							message: `Schema extensions are only available for AcBinaries entities`,
+							message: `Schema extensions are not available for entity type: ${entityName}`,
 						});
 					}
-					schemaExtention = 'AcBinariesExtensions';
+					schemaExtention = `${entityName}Extensions`;
 				} else {
 					throw new NodeApiError(this.getNode(), {
 						message: `Unsupported resource for schema extensions: ${resource}`,
@@ -856,26 +913,21 @@ export class Drivelock implements INodeType {
 
 						const qs: IDataObject = {};
 
-						if (entityName === 'AcBinaries') {
-							const getFullObject = this.getNodeParameter('getFullObject', i, false) as boolean;
-							qs.getFullObjects = getFullObject;
-							if (!getFullObject) {
-								const propertiesToInclude = this.getNodeParameter('properties', i, []) as string[];
-								const extentionPropertiesToInclude = this.getNodeParameter('extentionproperties', i, []) as string[];
-								let selectFields = Array.isArray(propertiesToInclude) ? propertiesToInclude.join(',') : '';
-								if (Array.isArray(extentionPropertiesToInclude) && extentionPropertiesToInclude.length) {
-									const extFields = extentionPropertiesToInclude.map((k) => `extensions.${k}`).join(',');
-									selectFields = selectFields ? `${selectFields},${extFields}` : extFields;
-								}
-								if (selectFields) qs.select = `id,${selectFields}`;
+						if (['AcBinaries', 'Computers', 'Users', 'Devices', 'Softwares', 'DefinedGroupMemberships', 'DriveLockConfigs', 'Drives', 'Events', 'Groups', 'WhiteLists'].includes(entityName)) {
+							const propertiesToInclude = this.getNodeParameter('properties', i, []) as string[];
+							if (Array.isArray(propertiesToInclude) && propertiesToInclude.length) {
+								qs.select = `id,${propertiesToInclude.join(',')}`;
 							}
-						} else {
-							if (additionalFields.select) qs.select = additionalFields.select;
+							const sortFieldsParam = this.getNodeParameter('sortFields', i, { fields: [] }) as { fields?: Array<{ field: string; direction: string }> };
+							if (sortFieldsParam.fields?.length) {
+								qs.sortBy = sortFieldsParam.fields.map((f) => `${f.direction}${f.field}`).join(',');
+							}
 							if (additionalFields.getFullObjects !== undefined)
 								qs.getFullObjects = additionalFields.getFullObjects;
+						} else {
+							if (additionalFields.select) qs.select = additionalFields.select;
+							if (additionalFields.sortBy) qs.sortBy = additionalFields.sortBy;
 						}
-
-						if (additionalFields.sortBy) qs.sortBy = additionalFields.sortBy;
 						if (additionalFields.groupBy) qs.groupBy = additionalFields.groupBy;
 						if (additionalFields.skip !== undefined) qs.skip = additionalFields.skip;
 						if (additionalFields.take !== undefined) qs.take = additionalFields.take;
@@ -934,26 +986,21 @@ export class Drivelock implements INodeType {
 
 						const qs: IDataObject = { exportFormat };
 
-						if (entityName === 'AcBinaries') {
-							const getFullObject = this.getNodeParameter('getFullObject', i, false) as boolean;
-							qs.getFullObjects = getFullObject;
-							if (!getFullObject) {
-								const propertiesToInclude = this.getNodeParameter('properties', i, []) as string[];
-								const extentionPropertiesToInclude = this.getNodeParameter('extentionproperties', i, []) as string[];
-								let selectFields = Array.isArray(propertiesToInclude) ? propertiesToInclude.join(',') : '';
-								if (Array.isArray(extentionPropertiesToInclude) && extentionPropertiesToInclude.length) {
-									const extFields = extentionPropertiesToInclude.map((k) => `extensions.${k}`).join(',');
-									selectFields = selectFields ? `${selectFields},${extFields}` : extFields;
-								}
-								if (selectFields) qs.select = `id,${selectFields}`;
+						if (['AcBinaries', 'Computers', 'Users', 'Devices', 'Softwares', 'DefinedGroupMemberships', 'DriveLockConfigs', 'Drives', 'Events', 'Groups', 'WhiteLists'].includes(entityName)) {
+							const propertiesToInclude = this.getNodeParameter('properties', i, []) as string[];
+							if (Array.isArray(propertiesToInclude) && propertiesToInclude.length) {
+								qs.select = `id,${propertiesToInclude.join(',')}`;
 							}
-						} else {
-							if (additionalFields.select) qs.select = additionalFields.select;
+							const sortFieldsParam = this.getNodeParameter('sortFields', i, { fields: [] }) as { fields?: Array<{ field: string; direction: string }> };
+							if (sortFieldsParam.fields?.length) {
+								qs.sortBy = sortFieldsParam.fields.map((f) => `${f.direction}${f.field}`).join(',');
+							}
 							if (additionalFields.getFullObjects !== undefined)
 								qs.getFullObjects = additionalFields.getFullObjects;
+						} else {
+							if (additionalFields.select) qs.select = additionalFields.select;
+							if (additionalFields.sortBy) qs.sortBy = additionalFields.sortBy;
 						}
-
-						if (additionalFields.sortBy) qs.sortBy = additionalFields.sortBy;
 						if (additionalFields.groupBy) qs.groupBy = additionalFields.groupBy;
 						if (additionalFields.skip !== undefined) qs.skip = additionalFields.skip;
 						if (additionalFields.take !== undefined) qs.take = additionalFields.take;

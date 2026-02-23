@@ -73,6 +73,7 @@ export function makeFilterProperties(
 		conditionFieldParams = [stringFieldParam, fieldTypeParam];
 	}
 
+	// FIXME: double check RSQL if it supports "contains", "startsWith", "endsWith" for strings, or if we need to do some special handling for those (e.g. convert to eq and add wildcards)
 	const operatorParam: INodeProperties = {
 		displayName: 'Operator',
 		name: 'operator',
@@ -243,7 +244,7 @@ export function makeFilterProperties(
 			type: 'string',
 			default: '',
 			description:
-				'DriveLock RQL filter expression, e.g. eq(name,"MyComputer"). Passed to API as-is.',
+				'DriveLock RQL filter expression, e.g. eq(name,MyComputer). Passed to API as-is.',
 			displayOptions: {
 				show: {
 					resource: resourceValues,

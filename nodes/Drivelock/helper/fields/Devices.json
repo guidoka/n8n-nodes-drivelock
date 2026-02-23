@@ -1,10 +1,12 @@
 [
-	{ "id": "id",           "name": "ID",           "type": "string" },
-	{ "id": "name",         "name": "Name",         "type": "string" },
-	{ "id": "description",  "name": "Description",  "type": "string" },
-	{ "id": "createdAt",    "name": "Created At",   "type": "date"   },
-	{ "id": "deviceClass",  "name": "Device Class", "type": "string" },
-	{ "id": "vendorId",     "name": "Vendor ID",    "type": "string" },
-	{ "id": "productId",    "name": "Product ID",   "type": "string" },
-	{ "id": "serialNumber", "name": "Serial Number","type": "string" }
+	{ "id": "id", "name": "id", "type": "string" },
+	{ "id": "hardwareId", "name": "hardwareId", "type": "string" },
+	{ "id": "name", "name": "name", "type": "string" },
+	{ "id": "compatibleID", "name": "compatibleID", "type": "string" },
+	{ "id": "busType", "name": "busType", "type": "string" },
+	{ "id": "deviceType", "name": "deviceType", "type": "number" },
+	{ "id": "classID", "name": "classID", "type": "string" },
+	{ "id": "isPredefined", "name": "isPredefined", "type": "boolean" },
+	{ "id": "createdDate", "name": "createdDate", "type": "date" },
+	{ "id": "serialNumber", "name": "serialNumber", "type": "string" }
 ]

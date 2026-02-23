@@ -1,0 +1,11 @@
+[
+	{ "id": "id", "name": "id", "type": "string" },
+	{ "id": "groupID", "name": "groupID", "type": "string" },
+	{ "id": "isExclude", "name": "isExclude", "type": "boolean" },
+	{ "id": "type", "name": "type", "type": "number" },
+	{ "id": "created", "name": "created", "type": "date" },
+	{ "id": "modified", "name": "modified", "type": "date" },
+	{ "id": "changeCounter", "name": "changeCounter", "type": "number" },
+	{ "id": "comment", "name": "comment", "type": "string" },
+	{ "id": "childMemberId", "name": "childMemberId", "type": "string" }
+]

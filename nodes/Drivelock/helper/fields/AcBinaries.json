@@ -1,11 +1,11 @@
 [
-	{ "id": "displayName",    "name": "Binary (Display Name)",    "type": "string" },
-	{ "id": "fileHash",       "name": "File Hash",                "type": "string" },
-	{ "id": "product",        "name": "Product",                  "type": "string" },
-	{ "id": "versionInfo",    "name": "Version",                  "type": "string" },
-	{ "id": "verDescription", "name": "Version Description",      "type": "string" },
-	{ "id": "acCertificateID","name": "Certificate ID",           "type": "string" },
-	{ "id": "fileSize",       "name": "File Size",                "type": "number" },
-	{ "id": "createdDate",    "name": "Created Date",             "type": "date"   },
-	{ "id": "associatedRule", "name": "Nested Filter",            "type": "string" }
+	{ "id": "id", "name": "id", "type": "string" },
+	{ "id": "fileHash", "name": "fileHash", "type": "string" },
+	{ "id": "versionInfo", "name": "versionInfo", "type": "string" },
+	{ "id": "verDescription", "name": "verDescription", "type": "string" },
+	{ "id": "product", "name": "product", "type": "string" },
+	{ "id": "createdDate", "name": "createdDate", "type": "date" },
+	{ "id": "acCertificateID", "name": "acCertificateID", "type": "string" },
+	{ "id": "fileSize", "name": "fileSize", "type": "number" },
+	{ "id": "displayName", "name": "displayName", "type": "string" }
 ]

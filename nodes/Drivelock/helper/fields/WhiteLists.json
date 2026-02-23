@@ -1,0 +1,9 @@
+[
+	{ "id": "id", "name": "id", "type": "string" },
+	{ "id": "createdDate", "name": "createdDate", "type": "date" },
+	{ "id": "objectID", "name": "objectID", "type": "string" },
+	{ "id": "displayName", "name": "displayName", "type": "string" },
+	{ "id": "wlComment", "name": "wlComment", "type": "string" },
+	{ "id": "whiteListType", "name": "whiteListType", "type": "number" },
+	{ "id": "modificationDate", "name": "modificationDate", "type": "date" }
+]

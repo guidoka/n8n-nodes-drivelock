@@ -1,0 +1,19 @@
+[
+	{ "id": "id", "name": "id", "type": "string" },
+	{ "id": "configId", "name": "configId", "type": "string" },
+	{ "id": "displayName", "name": "displayName", "type": "string" },
+	{ "id": "policyVersion", "name": "policyVersion", "type": "number" },
+	{ "id": "timestamp", "name": "timestamp", "type": "date" },
+	{ "id": "uploadComplete", "name": "uploadComplete", "type": "boolean" },
+	{ "id": "createdAt", "name": "createdAt", "type": "date" },
+	{ "id": "modified", "name": "modified", "type": "date" },
+	{ "id": "published", "name": "published", "type": "boolean" },
+	{ "id": "policyDataSize", "name": "policyDataSize", "type": "number" },
+	{ "id": "policyType", "name": "policyType", "type": "number" },
+	{ "id": "hash", "name": "hash", "type": "string" },
+	{ "id": "policyProperties", "name": "policyProperties", "type": "string" },
+	{ "id": "policyFlags", "name": "policyFlags", "type": "number" },
+	{ "id": "isLatestVersion", "name": "isLatestVersion", "type": "boolean" },
+	{ "id": "isLatestPublishedVersion", "name": "isLatestPublishedVersion", "type": "boolean" },
+	{ "id": "allowedContentFlags", "name": "allowedContentFlags", "type": "number" }
+]

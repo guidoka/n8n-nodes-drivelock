@@ -1,10 +1,12 @@
 [
-	{ "id": "id",           "name": "ID",           "type": "string" },
-	{ "id": "name",         "name": "Name",         "type": "string" },
-	{ "id": "description",  "name": "Description",  "type": "string" },
-	{ "id": "createdAt",    "name": "Created At",   "type": "date"   },
-	{ "id": "driveType",    "name": "Drive Type",   "type": "string" },
-	{ "id": "volumeLabel",  "name": "Volume Label", "type": "string" },
-	{ "id": "serialNumber", "name": "Serial Number","type": "string" },
-	{ "id": "fileSystem",   "name": "File System",  "type": "string" }
+	{ "id": "id", "name": "id", "type": "string" },
+	{ "id": "vendorId", "name": "vendorId", "type": "string" },
+	{ "id": "productId", "name": "productId", "type": "string" },
+	{ "id": "hwRevisionNumber", "name": "hwRevisionNumber", "type": "string" },
+	{ "id": "hwSerialNumber", "name": "hwSerialNumber", "type": "string" },
+	{ "id": "storageType", "name": "storageType", "type": "number" },
+	{ "id": "storageBus", "name": "storageBus", "type": "number" },
+	{ "id": "isPredefined", "name": "isPredefined", "type": "boolean" },
+	{ "id": "createdDate", "name": "createdDate", "type": "date" },
+	{ "id": "name", "name": "name", "type": "string" }
 ]

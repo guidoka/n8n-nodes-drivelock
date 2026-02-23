@@ -1,0 +1,12 @@
+[
+	{ "id": "id", "name": "id", "type": "string" },
+	{ "id": "identifier", "name": "identifier", "type": "string" },
+	{ "id": "name", "name": "name", "type": "string" },
+	{ "id": "description", "name": "description", "type": "string" },
+	{ "id": "type", "name": "type", "type": "number" },
+	{ "id": "memberType", "name": "memberType", "type": "number" },
+	{ "id": "created", "name": "created", "type": "date" },
+	{ "id": "modified", "name": "modified", "type": "date" },
+	{ "id": "mergeLogic", "name": "mergeLogic", "type": "number" },
+	{ "id": "isSystem", "name": "isSystem", "type": "boolean" }
+]
