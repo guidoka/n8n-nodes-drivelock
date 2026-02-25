@@ -16,13 +16,13 @@ export const groupOperations: INodeProperties[] = [
 		},
 		options: [
 			{
-				name: 'Add Computer to Group',
+				name: 'Add Computer To Group',
 				value: 'addComputerToGroup',
 				description: 'Add a computer to a group by computer name',
 				action: 'Add computer to group',
 			},
 			{
-				name: 'Remove Computer from Group',
+				name: 'Remove Computer From Group',
 				value: 'removeComputerFromGroup',
 				description: 'Remove a computer from a group by computer name',
 				action: 'Remove computer from group',
