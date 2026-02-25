@@ -1,6 +1,6 @@
 {
   "name": "@drivelock/n8n-nodes-drivelock",
-  "version": "0.2.3",
+  "version": "0.2.4",
   "description": "Control the DriveLock API with n8n.",
   "license": "MIT",
   "homepage": "https://www.drivelock.com",
