@@ -60,7 +60,6 @@ import { deviceRuleOperations } from './operations/DeviceRuleOperations';
 import { driveRuleOperations } from './operations/DriveRuleOperations';
 import { entityOperations } from './operations/EntityOperations';
 import { groupOperations } from './operations/GroupOperations';
-import { policyOperations } from './operations/PolicyOperations';
 
 /**
  * Safely extract response data and avoid circular references.
@@ -226,42 +225,12 @@ export class Drivelock implements INodeType {
 						description: 'Manage groups',
 					},
 					{
-						name: 'Policy',
-						value: 'policy',
-						description: 'Manage policies',
-					},
-					{
-						name: 'Tool',
-						value: 'tool',
-						description: 'Tool to handle DriveLock node data',
-					},
-					{
 						name: 'Manage Schema Extention',
 						value: 'customproperty',
 						description: 'Check and manage schema extensions for entities computer, drives, devices, software and binaries',
 					},
 				],
 				default: 'customproperty',
-			},
-			{
-				displayName: 'Operation',
-				name: 'operation',
-				type: 'options',
-				noDataExpression: true,
-				displayOptions: {
-					show: {
-						resource: ['tool'],
-					},
-				},
-				options: [
-					{
-						name: 'Change JSON Data-Return to Item Array',
-						value: 'changeoutput',
-						description: 'Change the output',
-						action: 'Change JSON data return to item array',
-					},
-				],
-				default: 'changeoutput',
 			},
 			...applicationRuleOperations,
 			...computerOperations,
@@ -270,7 +239,6 @@ export class Drivelock implements INodeType {
 			...driveRuleOperations,
 			...entityOperations,
 			...groupOperations,
-			...policyOperations,
 		],
 	};
 
@@ -525,25 +493,7 @@ export class Drivelock implements INodeType {
 		for (let i = 0; i < length; i++) {
 			try {
 
-				if (resource === 'tool') {
-
-					if (operation === 'changeoutput') {
-						const toolOutput = items.flatMap((item) => {
-							const dataArray = item?.json?.data;
-
-							if (!Array.isArray(dataArray)) {
-								return [];
-							}
-
-							return dataArray.map((dataItem: unknown) => ({
-								json: dataItem as IDataObject,
-							}));
-						});
-
-						return [toolOutput];
-					}
-
-				} else if (resource === 'customproperty') {
+				if (resource === 'customproperty') {
 
 					const schema = this.getNodeParameter('schema', i) as string;
 					const schemaExtention = `${schema}Extensions`;
@@ -943,11 +893,17 @@ export class Drivelock implements INodeType {
 					// =====================================
 					// Group Operations
 					// =====================================
-					if (operation === 'addComputersToGroup') {
+					if (operation === 'addComputerToGroup' || operation === 'removeComputerFromGroup') {
 						const groupId = this.getNodeParameter('groupId', i) as string;
-						const membershipsStr = this.getNodeParameter('memberships', i) as string;
-
-						const memberships = parseJsonParameter(membershipsStr, this.getNode(), i, 'memberships') as IDataObject;
+						const membershipsParam = this.getNodeParameter('memberships', i, {}) as {
+							membershipValues?: Array<{ computerName: string; comment: string }>;
+						};
+						const isExclude = operation === 'removeComputerFromGroup';
+						const memberships = (membershipsParam.membershipValues ?? []).map((m) => ({
+							name: m.computerName,
+							isExclude,
+							comment: m.comment ?? '',
+						}));
 
 						const body: IDataObject = { groupId, memberships };
 						const response = await driveLockApiRequest.call(
@@ -1005,66 +961,6 @@ export class Drivelock implements INodeType {
 						);
 					}
 
-				} else if (resource === 'policy') {
-					// =====================================
-					// Policy Operations
-					// =====================================
-					if (operation === 'get') {
-						const policyId = this.getNodeParameter('policyId', i) as string;
-
-						const response = await driveLockApiRequest.call(
-							this, 'GET', `/api/administration/policy/${policyId}`,
-						);
-						returnData.push(extractResponseData(response));
-
-					} else if (operation === 'create') {
-						const policyDataStr = this.getNodeParameter('policyData', i) as string;
-
-						const policyData = parseJsonParameter(policyDataStr, this.getNode(), i, 'policyData');
-
-						const response = await driveLockApiRequest.call(
-							this, 'POST', '/api/administration/policy', policyData,
-						);
-						returnData.push(extractResponseData(response));
-
-					} else if (operation === 'update') {
-						const policyId = this.getNodeParameter('policyId', i) as string;
-						const policyDataStr = this.getNodeParameter('policyData', i) as string;
-
-						const policyData = parseJsonParameter(policyDataStr, this.getNode(), i, 'policyData');
-
-						const response = await driveLockApiRequest.call(
-							this, 'PATCH', `/api/administration/policy/${policyId}`, policyData,
-						);
-						returnData.push(extractResponseData(response));
-
-					} else if (operation === 'delete') {
-						const policyId = this.getNodeParameter('policyId', i) as string;
-
-						const response = await driveLockApiRequest.call(
-							this, 'DELETE', `/api/administration/policy/${policyId}`,
-						);
-						returnData.push(extractResponseData(response));
-
-					} else if (operation === 'getAssignments') {
-						const policyId = this.getNodeParameter('policyId', i) as string;
-
-						const response = await driveLockApiRequest.call(
-							this, 'GET', `/api/administration/policy/${policyId}/assignments`,
-						);
-						returnData.push(extractResponseData(response));
-
-					} else if (operation === 'assignToGroups') {
-						const policyId = this.getNodeParameter('policyId', i) as string;
-						const groupIdsStr = this.getNodeParameter('groupIds', i) as string;
-						const groupIds = validateCommaSeparatedIds(groupIdsStr, this.getNode(), i, 'groupIds');
-
-						const body: IDataObject = { policyId, groupIds };
-						const response = await driveLockApiRequest.call(
-							this, 'POST', `/api/administration/policy/${policyId}/assign`, body,
-						);
-						returnData.push(extractResponseData(response));
-					}
 				}
 
 			} catch (error) {
