@@ -8,6 +8,42 @@ import type {
 	IHttpRequestOptions,
 } from 'n8n-workflow';
 
+/**
+ * Safely extract response data and avoid circular references.
+ * Normalizes API responses into a consistent shape with a `success` flag.
+ */
+export function extractResponseData(response: unknown): IDataObject {
+	if (!response) return { success: true };
+	if (typeof response === 'string') return { data: response };
+
+	if (typeof response === 'object' && response !== null) {
+		const responseObj = response as Record<string, unknown>;
+		const { errorId, error, data, total, additionalInfo, ...rest } = responseObj;
+
+		const result: IDataObject = {
+			success: !error,
+		};
+
+		if (errorId !== undefined && errorId !== null) result.errorId = errorId;
+		if (error !== undefined && error !== null) result.error = error;
+		if (data !== undefined) result.data = data;
+		if (total !== undefined) result.total = total;
+		if (additionalInfo !== undefined && additionalInfo !== null) {
+			result.additionalInfo = additionalInfo;
+		}
+
+		for (const key of Object.keys(rest)) {
+			if (rest[key] !== undefined && rest[key] !== null) {
+				result[key] = rest[key];
+			}
+		}
+
+		return result;
+	}
+
+	return { success: true, data: response };
+}
+
 import { NodeApiError, sleep } from 'n8n-workflow';
 import { DriveLockApiResponse } from './utils';
 
