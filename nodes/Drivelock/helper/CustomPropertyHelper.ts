@@ -19,7 +19,7 @@ export function hasNestedProperty(obj: unknown, path: string[]): boolean {
     if (typeof next === "object" && next !== null) {
       current = next as Record<string, unknown>;
     } else if (key !== path[path.length - 1]) {
-      // Noch nicht am Ende, aber kein Objekt → Pfad ungültig
+      // not yet at the end, but not an object — path is invalid
       return false;
     } else {
       current = undefined;

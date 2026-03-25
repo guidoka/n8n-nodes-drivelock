@@ -134,16 +134,3 @@ export function isBase64(content: string) {
 	return base64regex.test(content);
 }
 
-/**
- * @deprecated Use parseJsonParameter from ValidationHelpers.ts instead.
- * This function silently returns undefined on parse errors.
- */
-export function validateJSON(json: string | undefined): string {
-	let result;
-	try {
-		result = JSON.parse(json!);
-	} catch {
-		result = undefined;
-	}
-	return result;
-}

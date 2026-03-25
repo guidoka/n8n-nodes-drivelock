@@ -115,5 +115,15 @@ export async function executeCustomPropertyOperation(
 		return { success: true, payload };
 	}
 
+	if (operation === 'delete') {
+		const customPropertyId = ctx.getNodeParameter('customPropertyId', i) as IDataObject;
+		const entityId = customPropertyId.value as string;
+
+		const url = `/api/administration/entity/customSchema/deleteCustomData/${schemaExtention}/${entityId}`;
+		await driveLockApiRequest.call(ctx, 'DELETE', url, {});
+
+		return { success: true, deleted: entityId };
+	}
+
 	throw new NodeOperationError(ctx.getNode(), `Unknown operation: ${operation}`);
 }

@@ -14,57 +14,7 @@ export const computerOperations: INodeProperties[] = [
                 resource: ['computer'],
             },
         },
-        // eslint-disable-next-line n8n-nodes-base/node-param-options-type-unsorted-items
         options: [
-            {
-                name: 'Delete',
-                value: 'delete',
-                description: 'Delete computers',
-                action: 'Delete computers',
-            },
-            {
-                name: 'Execute Actions',
-                value: 'executeActions',
-                description: 'Execute actions on computers',
-                action: 'Execute actions on computers',
-            },
-            {
-                name: 'Online Unlock',
-                value: 'onlineUnlock',
-                description: 'Unlock a computer online',
-                action: 'Unlock a computer online',
-            },
-            {
-                name: 'Stop Online Unlock',
-                value: 'stopOnlineUnlock',
-                description: 'Stop online unlock here',
-                action: 'Stop online unlock',
-            },
-            {
-                name: 'Mark for Rejoin',
-                value: 'markForRejoin',
-                description: 'Mark computers for rejoin',
-                action: 'Mark computers for rejoin',
-            },
-            {
-                name: 'Clear Agent ID Token',
-                value: 'clearAgentIdToken',
-                description:
-                    'WARNING: This irreversibly clears the agent ID token. The computer will need to re-register with the DriveLock Enterprise Service. Use with caution.',
-                action: 'Clear agent ID token',
-            },
-            {
-                name: 'Set Image Flag',
-                value: 'setImageFlag',
-                description: 'Set the image flag on a computer (marks it as an image/template)',
-                action: 'Set image flag on a computer',
-            },
-            {
-                name: 'Stop Online Unlocks (Bulk)',
-                value: 'stopOnlineUnlocks',
-                description: 'Stop online unlocks for multiple computers at once',
-                action: 'Stop online unlocks for multiple computers',
-            },
             {
                 name: 'BitLocker Recovery',
                 value: 'bitlockerRecovery',
@@ -78,6 +28,55 @@ export const computerOperations: INodeProperties[] = [
                 description:
                     'Retrieve BitLocker2Go recovery key for removable drives. Note: Recovery keys are returned as plain text. Ensure execution logs are secured appropriately.',
                 action: 'Get bit locker2 go recovery key',
+            },
+            {
+                name: 'Clear Agent ID Token',
+                value: 'clearAgentIdToken',
+                description:
+                    'WARNING: This irreversibly clears the agent ID token. The computer will need to re-register with the DriveLock Enterprise Service. Use with caution.',
+                action: 'Clear agent ID token',
+            },
+            {
+                name: 'Delete',
+                value: 'delete',
+                description: 'Delete computers',
+                action: 'Delete computers',
+            },
+            {
+                name: 'Execute Actions',
+                value: 'executeActions',
+                description: 'Execute actions on computers',
+                action: 'Execute actions on computers',
+            },
+            {
+                name: 'Mark for Rejoin',
+                value: 'markForRejoin',
+                description: 'Mark computers for rejoin',
+                action: 'Mark computers for rejoin',
+            },
+            {
+                name: 'Online Unlock',
+                value: 'onlineUnlock',
+                description: 'Unlock a computer online',
+                action: 'Unlock a computer online',
+            },
+            {
+                name: 'Set Image Flag',
+                value: 'setImageFlag',
+                description: 'Set the image flag on a computer (marks it as an image/template)',
+                action: 'Set image flag on a computer',
+            },
+            {
+                name: 'Stop Online Unlock',
+                value: 'stopOnlineUnlock',
+                description: 'Stop online unlock here',
+                action: 'Stop online unlock',
+            },
+            {
+                name: 'Stop Online Unlocks (Bulk)',
+                value: 'stopOnlineUnlocks',
+                description: 'Stop online unlocks for multiple computers at once',
+                action: 'Stop online unlocks for multiple computers',
             },
         ],
         default: 'delete',

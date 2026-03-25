@@ -21,7 +21,7 @@ export type ExtensionProperty = {
   orderId: number;
 };
 export interface DriveLockQuery {
-    // bekannte Basis-Parameter
+    // known base parameters
     sortBy?: string;
     select?: string | null;
     query?: string | null;
@@ -31,7 +31,7 @@ export interface DriveLockQuery {
     take?: number;
     skip?: number;
 
-    // erlaubt beliebige weitere Parameter
+    // allows any additional parameters
     [key: string]: string | number | boolean | null | undefined;
 }
 
@@ -40,7 +40,7 @@ export interface DriveLockApiResponse<T> {
 	total?: number | null;      // optional
 	additionalInfo?: number;    // optional
 	timeStamp?: string;         // optional
-  [key: string]: unknown;     // optional beliebige weitere Felder
+  [key: string]: unknown;     // allows any additional fields
 }
 
 export interface CustomPropsResponse {

@@ -14,19 +14,12 @@ export const applicationRuleOperations: INodeProperties[] = [
 				resource: ['applicationRules'],
 			},
 		},
-		// eslint-disable-next-line n8n-nodes-base/node-param-options-type-unsorted-items
 		options: [
 			{
-				name: 'Get Rules',
-				value: 'getRules',
-				description: 'Get application rules from a policy',
-				action: 'Get application rules',
-			},
-			{
-				name: 'Get Behavior Rules',
-				value: 'getBehaviorRules',
-				description: 'Get application behavior rules from a policy',
-				action: 'Get application behavior rules',
+				name: 'Create Behavior Rules',
+				value: 'createBehaviorRules',
+				description: 'Create application behavior rules',
+				action: 'Create application behavior rules',
 			},
 			{
 				name: 'Create Rules',
@@ -35,22 +28,10 @@ export const applicationRuleOperations: INodeProperties[] = [
 				action: 'Create application rules',
 			},
 			{
-				name: 'Create Behavior Rules',
-				value: 'createBehaviorRules',
-				description: 'Create application behavior rules',
-				action: 'Create application behavior rules',
-			},
-			{
-				name: 'Update Rules',
-				value: 'updateRules',
-				description: 'Update application rules',
-				action: 'Update application rules',
-			},
-			{
-				name: 'Update Behavior Rules',
-				value: 'updateBehaviorRules',
-				description: 'Update application behavior rules',
-				action: 'Update application behavior rules',
+				name: 'Delete Behavior Rules',
+				value: 'deleteBehaviorRules',
+				description: 'Delete application behavior rules',
+				action: 'Delete application behavior rules',
 			},
 			{
 				name: 'Delete Rules',
@@ -59,10 +40,28 @@ export const applicationRuleOperations: INodeProperties[] = [
 				action: 'Delete application rules',
 			},
 			{
-				name: 'Delete Behavior Rules',
-				value: 'deleteBehaviorRules',
-				description: 'Delete application behavior rules',
-				action: 'Delete application behavior rules',
+				name: 'Get Behavior Rules',
+				value: 'getBehaviorRules',
+				description: 'Get application behavior rules from a policy',
+				action: 'Get application behavior rules',
+			},
+			{
+				name: 'Get Rules',
+				value: 'getRules',
+				description: 'Get application rules from a policy',
+				action: 'Get application rules',
+			},
+			{
+				name: 'Update Behavior Rules',
+				value: 'updateBehaviorRules',
+				description: 'Update application behavior rules',
+				action: 'Update application behavior rules',
+			},
+			{
+				name: 'Update Rules',
+				value: 'updateRules',
+				description: 'Update application rules',
+				action: 'Update application rules',
 			},
 		],
 		default: 'getRules',
