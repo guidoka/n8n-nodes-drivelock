@@ -11,7 +11,7 @@ export class DrivelockApi implements ICredentialType {
 
 	displayName = 'DriveLock API';
 
-	icon: Icon = 'file:../icons/drivelock.svg';
+	icon: Icon = 'file:drivelock.svg';
 
 	documentationUrl = 'https://dev.drivelock.cloud';
 

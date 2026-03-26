@@ -35,12 +35,13 @@
       "dist/credentials/DrivelockApi.credentials.js"
     ],
     "nodes": [
-      "dist/nodes/DriveLock/Drivelock.node.js"
+      "dist/nodes/Drivelock/Drivelock.node.js"
     ]
   },
   "devDependencies": {
     "@n8n/node-cli": "*",
     "@types/lodash": "^4.17.23",
+    "@types/node": "^25.3.3",
     "eslint": "9.32.0",
     "prettier": "3.6.2",
     "release-it": "^19.0.4",
