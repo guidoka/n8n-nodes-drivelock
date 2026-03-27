@@ -105,7 +105,7 @@ export class Drivelock implements INodeType {
 		usableAsTool: true,
 		properties: [
 			{
-				displayName: 'DriveLock Resource',
+				displayName: 'Resource',
 				name: 'resource',
 				type: 'options',
 				noDataExpression: true,
@@ -399,7 +399,7 @@ export class Drivelock implements INodeType {
 
 	async execute(this: IExecuteFunctions): Promise<INodeExecutionData[][]> {
 		const items = this.getInputData();
-		const returnData: IDataObject[] = [];
+		const returnData: INodeExecutionData[] = [];
 		const resource = this.getNodeParameter('resource', 0) as string;
 		const operation = this.getNodeParameter('operation', 0) as string;
 
@@ -409,16 +409,16 @@ export class Drivelock implements INodeType {
 				if (!handler) {
 					throw new NodeOperationError(this.getNode(), `Unknown resource: ${resource}`);
 				}
-				returnData.push(await handler(this, operation, i));
+				returnData.push({ json: await handler(this, operation, i), pairedItem: { item: i } });
 			} catch (error) {
 				if (this.continueOnFail()) {
-					returnData.push({ error: (error as Error).message });
+					returnData.push({ json: { error: (error as Error).message }, pairedItem: { item: i } });
 					continue;
 				}
 				throw error;
 			}
 		}
 
-		return [this.helpers.returnJsonArray(returnData)];
+		return [returnData];
 	}
 }
